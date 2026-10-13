@@ -88,7 +88,7 @@ At the domain registrar's DNS settings:
 | A | @ | 185.199.111.153 |
 | CNAME | www | `<your-github-org>.github.io` |
 
-Remove the old A/CNAME records that pointed to the WordPress host. Then in **Settings → Pages**, enter `mtcatlanta.org` as the custom domain and tick **Enforce HTTPS** once the certificate is issued (can take up to an hour).
+Remove the old A/CNAME records that pointed to the WordPress host. Then in `_config.yml` set `baseurl: ""` (it's `/AtlantaMarthomaChurch` while previewing on github.io), and in **Settings → Pages** enter `mtcatlanta.org` as the custom domain (GitHub adds a `CNAME` file) and tick **Enforce HTTPS** once the certificate is issued (can take up to an hour).
 
 Old URLs `/gallery/`, `/newsletters/`, `/contact-us/` keep the same addresses on the new site.
 

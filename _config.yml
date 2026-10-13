@@ -4,7 +4,7 @@ description: >-
   Mar Thoma Church, Atlanta — a worshipping community of the Malankara Mar Thoma
   Syrian Church. Sunday worship at 10 AM in Malayalam and English.
 url: "https://mtcatlanta.org"
-baseurl: ""
+baseurl: "/AtlantaMarthomaChurch"   # set to "" when mtcatlanta.org points here
 lang: en
 
 # Where images and PDFs are served from.
