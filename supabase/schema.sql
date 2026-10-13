@@ -204,9 +204,22 @@ create policy orgmem_read on public.organization_memberships for select to authe
 -- Announcements & documents: any signed-in member
 drop policy if exists ann_read on public.member_announcements;
 create policy ann_read on public.member_announcements for select to authenticated
-  using (expires_on is null or expires_on >= current_date);
+  using (public.my_member_id() is not null and (expires_on is null or expires_on >= current_date));
 
 drop policy if exists doc_read on public.member_documents;
-create policy doc_read on public.member_documents for select to authenticated using (true);
+create policy doc_read on public.member_documents for select to authenticated
+  using (public.my_member_id() is not null);
 
 -- Nothing is readable without logging in (no policies for the anon role).
+
+-- ---------- Function permissions ---------------------------------------
+-- Only signed-in users may call the helper functions; anonymous visitors get nothing.
+revoke execute on function public.my_member_id()       from public, anon;
+revoke execute on function public.my_family_id()       from public, anon;
+revoke execute on function public.is_officer()         from public, anon;
+revoke execute on function public.member_directory()   from public, anon;
+revoke execute on function public.update_my_family(text,text,text,text,text,text)   from public, anon;
+revoke execute on function public.update_family_member(uuid,text,text,date,boolean) from public, anon;
+grant  execute on function public.my_member_id()       to authenticated;
+grant  execute on function public.my_family_id()       to authenticated;
+grant  execute on function public.is_officer()         to authenticated;
