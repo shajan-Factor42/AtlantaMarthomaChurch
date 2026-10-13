@@ -32,7 +32,7 @@
   </script>
   {% endif %}
 </head>
-<body class="{% if page.portal %}is-portal{% endif %}">
+<body class="{% if page.portal %}is-portal{% endif %}{% if page.admin %} is-admin{% endif %}">
   <a class="skip" href="#main">Skip to content</a>
   {% include header.html %}
   <main id="main">

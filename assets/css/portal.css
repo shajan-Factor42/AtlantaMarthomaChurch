@@ -210,3 +210,50 @@
 .settings__save { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--white); padding: 1rem 0; border-top: 1px solid var(--line); }
 
 .show-pw { margin-top: -.4rem; font-size: .88rem !important; color: var(--muted); }
+
+/* =====================================================================
+   Admin console — deliberately different from the member portal
+   ===================================================================== */
+body.is-admin { background: #f3f5f8; }
+
+/* Sign-in: centered card on a dark console background */
+.admin-auth { min-height: calc(100vh - 160px); display: grid; place-items: center; padding: 3.5rem 16px; background:
+  radial-gradient(circle at 20% 0%, rgba(192,146,67,.18), transparent 45%),
+  radial-gradient(circle at 100% 100%, rgba(79,109,143,.35), transparent 50%),
+  linear-gradient(160deg, #1b2533, #26364a); position: relative; overflow: hidden; }
+.admin-auth::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(circle at center, #000 30%, transparent 75%); }
+.admin-auth__card { position: relative; width: min(440px, 100%); background: var(--white); border-radius: 18px; padding: 2.25rem clamp(1.4rem, 5vw, 2.5rem) 1.75rem; box-shadow: 0 40px 80px -30px rgba(0,0,0,.6); border-top: 5px solid var(--gold); }
+.admin-auth__mark { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: #1f2a36; color: var(--gold); margin-bottom: 1.1rem; }
+.admin-auth__kicker { font-size: .74rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin: 0 0 .3rem; }
+.admin-auth h1 { font-family: var(--sans); font-weight: 700; font-size: 1.75rem; letter-spacing: -.01em; margin-bottom: .4rem; }
+.admin-auth__lead { color: var(--muted); font-size: .95rem; margin-bottom: 1.5rem; }
+.admin-auth .form { gap: .85rem; }
+.admin-auth__foot { margin: 1.4rem 0 0; padding-top: 1.1rem; border-top: 1px solid var(--line); font-size: .88rem; color: var(--muted); }
+
+/* Console header */
+.admin__bar { background: #1f2a36; color: #fff; border-bottom: 3px solid var(--gold); }
+.admin__bar-inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.15rem 0; flex-wrap: wrap; }
+.admin__title { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
+.admin__badge { font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #1f2a36; background: var(--gold); padding: .3rem .6rem; border-radius: 6px; }
+.admin__bar h1 { font-family: var(--sans); font-size: 1.35rem; font-weight: 600; color: #fff; margin: 0; }
+.admin__bar .btn--ghost { border-color: rgba(255,255,255,.35); }
+
+/* Sidebar layout */
+.admin__body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 2rem; padding: 2rem 0 4rem; align-items: start; }
+.admin__nav { position: sticky; top: 110px; display: grid; gap: .2rem; background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: .5rem; }
+.admin__nav button { display: flex; align-items: center; gap: .7rem; width: 100%; text-align: left; background: none; border: 0; border-radius: 9px; padding: .7rem .8rem; font: inherit; font-size: .95rem; font-weight: 600; color: #46525f; cursor: pointer; }
+.admin__nav button:hover { background: #f1f4f8; color: #1f2a36; }
+.admin__nav button[aria-selected="true"] { background: #1f2a36; color: #fff; }
+.admin__nav button[aria-selected="true"] .nav-ico { color: var(--gold); }
+.nav-ico { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.admin .pcard, .admin .stat { border-radius: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+.admin .stat strong { font-family: var(--sans); font-weight: 700; font-size: 1.8rem; color: #1f2a36; }
+.admin .pcard h2 { font-family: var(--sans); font-weight: 700; font-size: 1.25rem; letter-spacing: -.01em; }
+.admin .person h3 { font-family: var(--sans); font-weight: 700; font-size: 1.05rem; }
+.admin .table th { background: #f7f9fb; }
+
+@media (max-width: 900px) {
+  .admin__body { grid-template-columns: 1fr; gap: 1.25rem; padding-top: 1.25rem; }
+  .admin__nav { position: static; display: flex; overflow-x: auto; padding: .35rem; scrollbar-width: thin; }
+  .admin__nav button { flex: none; width: auto; padding: .55rem .75rem; white-space: nowrap; }
+}
