@@ -52,7 +52,8 @@ All the images on the new site (logo, Vicar photo, flyers, gallery, banner, chur
 ### Load the parish register
 - `families` — one row per household (address, phone, prayer group, member number).
 - `members` — one row per person, linked to a family. Put an `email` on each adult who should be able to log in.
-- Use **Table Editor → Import data from CSV** for both tables (families first).
+- Easiest: **Admin → Directory Upload** — upload an Excel/CSV file (one row per person), review the changes, then import. Download the current directory, edit it, and upload it back for bulk updates.
+- Or use Supabase **Table Editor → Import data from CSV** for both tables (families first).
 - `contributions` / `pledges` — import past giving from your accounting spreadsheet, or have trustees enter it from **Admin → Giving**.
 - Make the secretary and trustees officers: in **Admin → Members**, edit their record and set Portal role to Officer (only an admin can do this).
 - Members-only documents and announcements: add rows to `member_documents` (link to a file in Supabase Storage or Google Drive) and `member_announcements`.
@@ -65,7 +66,7 @@ Want to test first? `supabase/sample-data.sql` creates one sample family — put
 ### What members can see and do
 | Area | Members (`/members/`) | Officers & admins (`/admin/`) |
 |---|---|---|
-| Profile & household | View; edit phone, address, birthday, directory opt-in | Add/edit/delete families and members |
+| Profile & household | View; edit phone, address, birthday, directory opt-in | Add/edit/delete families and members; bulk upload/update from Excel or CSV (Admin → Directory Upload) |
 | Portal access | — | Email an invitation or set a starting password; admins can reset passwords or remove access |
 | Giving | Own family's statement, printable per year | Record contributions, set pledges, export CSVs |
 | Announcements | Members + "both" announcements | Post to the home page, the portal, or both; pin; expire |

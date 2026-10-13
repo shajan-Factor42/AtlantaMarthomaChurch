@@ -646,6 +646,306 @@ const BIND = {
 };
 
 /* ---------------------------------------------------------------------
+   Directory upload / update (bulk import from CSV or Excel)
+--------------------------------------------------------------------- */
+const DIR_COLUMNS = [
+  ['member_number', 'Member number', 'family'], ['family_name', 'Family name', 'family'],
+  ['first_name', 'First name', 'member'], ['last_name', 'Last name', 'member'], ['relationship', 'Relationship', 'member'],
+  ['email', 'Email', 'member'], ['mobile_phone', 'Mobile phone', 'member'], ['date_of_birth', 'Date of birth', 'member'],
+  ['wedding_date', 'Wedding date', 'member'], ['baptized', 'Baptized', 'member'], ['confirmed', 'Confirmed', 'member'],
+  ['directory_opt_in', 'In directory', 'member'],
+  ['address_line1', 'Address line 1', 'family'], ['address_line2', 'Address line 2', 'family'], ['city', 'City', 'family'],
+  ['state', 'State', 'family'], ['zip', 'ZIP', 'family'], ['home_phone', 'Home phone', 'family'],
+  ['prayer_group', 'Prayer group', 'family'], ['home_parish', 'Home parish', 'family'], ['member_since', 'Member since', 'family'],
+  ['status', 'Status', 'family']
+];
+const DATE_FIELDS = new Set(['date_of_birth', 'wedding_date', 'member_since']);
+const BOOL_FIELDS = new Set(['baptized', 'confirmed', 'directory_opt_in']);
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const HEADER_ALIASES = (() => {
+  const m = {};
+  DIR_COLUMNS.forEach(([k, label]) => { m[norm(k)] = k; m[norm(label)] = k; });
+  Object.assign(m, { 'first': 'first_name', 'firstname': 'first_name', 'given name': 'first_name', 'last': 'last_name', 'lastname': 'last_name', 'surname': 'last_name',
+    'family': 'family_name', 'household': 'family_name', 'phone': 'mobile_phone', 'mobile': 'mobile_phone', 'cell': 'mobile_phone', 'cell phone': 'mobile_phone',
+    'e mail': 'email', 'email address': 'email', 'dob': 'date_of_birth', 'birthday': 'date_of_birth', 'birth date': 'date_of_birth', 'address': 'address_line1',
+    'street': 'address_line1', 'zip code': 'zip', 'postal code': 'zip', 'member no': 'member_number', 'member id': 'member_number', 'area': 'prayer_group',
+    'prayer group area': 'prayer_group', 'parish': 'home_parish', 'directory': 'directory_opt_in', 'list in directory': 'directory_opt_in' });
+  return m;
+})();
+
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r) => r.some((x) => String(x).trim() !== ''));
+}
+
+async function readSheet(file) {
+  if (/\.csv$/i.test(file.name) || file.type === 'text/csv') return parseCsv(await file.text());
+  if (!window.XLSX) {
+    await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('Couldn’t load the Excel reader. Save the file as CSV and try again.')); document.head.appendChild(s); });
+  }
+  const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }).filter((r) => r.some((x) => String(x).trim() !== ''));
+}
+
+function validYmd(y, mo, d) {
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1900 || y > 2100 || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return undefined;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+function cleanDate(v) {
+  if (v === '' || v == null) return null;
+  if (v instanceof Date && !isNaN(v)) return new Date(v.getTime() - v.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (typeof v === 'number' && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + v * 864e5).toISOString().slice(0, 10);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return validYmd(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (m) { let y = +m[3]; if (y < 100) y += y > 30 ? 1900 : 2000; return validYmd(y, +m[1], +m[2]); }
+  const d = new Date(s);
+  return isNaN(d) ? undefined : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+const cleanBool = (v) => { const s = norm(v); if (!s) return null; if (['y', 'yes', 'true', '1', 'x'].includes(s)) return true; if (['n', 'no', 'false', '0'].includes(s)) return false; return undefined; };
+
+/** Work out what an upload would change, without saving anything. */
+async function planImport(rows) {
+  const header = rows[0].map((h) => HEADER_ALIASES[norm(h)] || null);
+  const unknown = rows[0].filter((h, i) => String(h).trim() && !header[i]);
+  if (!header.includes('first_name') || !header.includes('last_name') || !(header.includes('family_name') || header.includes('member_number'))) {
+    throw new Error('The first row must have column headings, including First name, Last name, and Family name (or Member number). Download the template to see the layout.');
+  }
+  const fams = ok(await sb.from('families').select('*, members(*)'));
+  const allMembers = fams.flatMap((f) => f.members.map((m) => ({ ...m, _fam: f })));
+  const byNumber = new Map(fams.filter((f) => f.member_number).map((f) => [norm(f.member_number), f]));
+  const byName = new Map(fams.map((f) => [norm(f.family_name), f]));
+  const byEmail = new Map(allMembers.filter((m) => m.email).map((m) => [m.email.toLowerCase(), m]));
+
+  const famPlans = new Map(); // key -> { existing, values, changes }
+  const items = []; const problems = [];
+  const famKeyOf = (rec) => rec.member_number ? 'n:' + norm(rec.member_number) : 'f:' + norm(rec.family_name);
+
+  rows.slice(1).forEach((r, idx) => {
+    const line = idx + 2;
+    const rec = {};
+    header.forEach((k, i) => { if (k) rec[k] = typeof r[i] === 'string' ? r[i].trim() : r[i]; });
+    for (const k of DATE_FIELDS) if (k in rec) { const d = cleanDate(rec[k]); if (d === undefined) { problems.push({ line, msg: `“${rec[k]}” isn’t a date I can read (${k.replace(/_/g, ' ')}). Use YYYY-MM-DD or MM/DD/YYYY.` }); rec[k] = null; } else rec[k] = d; }
+    for (const k of BOOL_FIELDS) if (k in rec) { const b = cleanBool(rec[k]); rec[k] = b === undefined ? null : b; }
+    if (rec.email) rec.email = String(rec.email).toLowerCase();
+    if (rec.state) rec.state = String(rec.state).toUpperCase().slice(0, 2);
+    if (rec.status) { const s = norm(rec.status); rec.status = ['active', 'inactive', 'visitor'].includes(s) ? s : null; }
+    if (!rec.first_name || !rec.last_name) { problems.push({ line, msg: 'Missing first or last name — row skipped.' }); return; }
+    if (rec.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rec.email)) { problems.push({ line, msg: `“${rec.email}” isn’t a valid email — the email was left out.` }); delete rec.email; }
+
+    const existingFam = (rec.member_number && byNumber.get(norm(rec.member_number))) || (rec.family_name && byName.get(norm(rec.family_name))) || null;
+    if (!existingFam && !rec.family_name) { problems.push({ line, msg: rec.member_number ? `No family found with member number “${rec.member_number}”, and no family name given — row skipped.` : 'No family name or member number — row skipped.' }); return; }
+    // Match the person: same email anywhere, otherwise same name in the same family
+    const sameEmail = rec.email && byEmail.get(rec.email);
+    let existingMem = null;
+    if (sameEmail) {
+      if (!existingFam || sameEmail.family_id !== existingFam.id) { problems.push({ line, msg: `${rec.email} already belongs to ${sameEmail.first_name} ${sameEmail.last_name} in another family (${sameEmail._fam.family_name}) — row skipped.` }); return; }
+      if (norm(sameEmail.first_name) !== norm(rec.first_name) || norm(sameEmail.last_name) !== norm(rec.last_name)) { problems.push({ line, msg: `${rec.email} belongs to ${sameEmail.first_name} ${sameEmail.last_name}, not ${rec.first_name} ${rec.last_name} — row skipped. Fix the name or email and upload again.` }); return; }
+      existingMem = sameEmail;
+    } else if (existingFam) {
+      existingMem = existingFam.members.find((m) => norm(m.first_name) === norm(rec.first_name) && norm(m.last_name) === norm(rec.last_name)) || null;
+    }
+    if (rec.email && !existingMem && items.some((it) => it.values && it.values.email === rec.email)) { problems.push({ line, msg: `${rec.email} appears twice in the file — second row skipped.` }); return; }
+
+    const key = existingFam ? 'id:' + existingFam.id : famKeyOf(rec);
+    let fp = famPlans.get(key);
+    if (!fp) { fp = { existing: existingFam, values: {}, label: existingFam ? existingFam.family_name : rec.family_name }; famPlans.set(key, fp); }
+    DIR_COLUMNS.filter(([, , t]) => t === 'family').forEach(([k]) => {
+      const v = rec[k];
+      if (v === undefined || v === null || v === '') return;
+      if (k === 'family_name' && existingFam && rec.member_number && norm(v) !== norm(existingFam.family_name)) { fp.values[k] = v; return; }
+      if (fp.values[k] === undefined) fp.values[k] = typeof v === 'number' ? String(v) : v;
+    });
+
+    const values = {};
+    DIR_COLUMNS.filter(([, , t]) => t === 'member').forEach(([k]) => { const v = rec[k]; if (v !== undefined && v !== null && v !== '') values[k] = typeof v === 'number' ? String(v) : v; });
+    if (existingMem && existingMem.auth_user_id && values.email && values.email !== existingMem.email) { problems.push({ line, msg: `${rec.first_name} ${rec.last_name} signs in with ${existingMem.email}; the new email was ignored. Remove portal access first to change it.` }); delete values.email; }
+    const changes = existingMem ? Object.keys(values).filter((k) => String(existingMem[k] ?? '') !== String(values[k])) : Object.keys(values);
+    if (existingMem && !changes.length) { items.push({ line, kind: 'same', fam: fp, name: `${rec.first_name} ${rec.last_name}` }); return; }
+    items.push({ line, kind: existingMem ? 'update' : 'new', fam: fp, existing: existingMem, values: existingMem ? Object.fromEntries(changes.map((k) => [k, values[k]])) : values, changes, name: `${rec.first_name} ${rec.last_name}` });
+  });
+
+  famPlans.forEach((fp) => {
+    if (!fp.existing) { fp.kind = 'new'; fp.changes = Object.keys(fp.values); return; }
+    fp.changes = Object.keys(fp.values).filter((k) => String(fp.existing[k] ?? '') !== String(fp.values[k]));
+    fp.kind = fp.changes.length ? 'update' : 'same';
+  });
+  return { famPlans: [...famPlans.values()], items, problems, unknown, total: rows.length - 1 };
+}
+
+const FIELD_LABEL = Object.fromEntries(DIR_COLUMNS.map(([k, l]) => [k, l]));
+const shown = (v) => (v === true ? 'Yes' : v === false ? 'No' : v ?? '—');
+function planSummary(plan) {
+  const f = plan.famPlans, it = plan.items;
+  const n = (arr, k) => arr.filter((x) => x.kind === k).length;
+  return { newFams: n(f, 'new'), updFams: n(f, 'update'), newMems: n(it, 'new'), updMems: n(it, 'update'), same: n(it, 'same'), problems: plan.problems.length };
+}
+
+function renderPlan(plan) {
+  const s = planSummary(plan);
+  const nothing = !s.newFams && !s.updFams && !s.newMems && !s.updMems;
+  const changeRows = [
+    ...plan.famPlans.filter((f) => f.kind !== 'same').map((f) => `<tr><td><span class="pill pill--${f.kind === 'new' ? 'both' : 'members'}">${f.kind === 'new' ? 'New family' : 'Family update'}</span></td><td><strong>${esc(f.label)}</strong></td><td class="muted small">${f.changes.map((k) => `${esc(FIELD_LABEL[k] || k)}${f.kind === 'update' ? `: ${esc(shown(f.existing[k]))} → ${esc(shown(f.values[k]))}` : `: ${esc(shown(f.values[k]))}`}`).join('<br>')}</td></tr>`),
+    ...plan.items.filter((i) => i.kind !== 'same').map((i) => `<tr><td><span class="pill pill--${i.kind === 'new' ? 'both' : 'members'}">${i.kind === 'new' ? 'New member' : 'Member update'}</span></td><td><strong>${esc(i.name)}</strong><br><small class="muted">${esc(i.fam.label)} · row ${i.line}</small></td><td class="muted small">${i.changes.map((k) => `${esc(FIELD_LABEL[k] || k)}${i.kind === 'update' ? `: ${esc(shown(i.existing[k]))} → ${esc(shown(i.values[k]))}` : `: ${esc(shown(i.values[k]))}`}`).join('<br>') || '—'}</td></tr>`)
+  ];
+  return `
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Review before importing</h2><p class="muted small">${plan.total} row${plan.total === 1 ? '' : 's'} read from <strong>${esc(ctx.dirFileName)}</strong>. Nothing has been saved yet.</p></div>
+        <div class="btn-row"><button class="btn btn--outline btn--small" id="dir-cancel">Choose a different file</button>${nothing ? '' : '<button class="btn btn--primary btn--small" id="dir-apply">Import changes</button>'}</div></div>
+      <div class="stats stats--compact">
+        <div class="stat"><span>New families</span><strong>${s.newFams}</strong></div>
+        <div class="stat"><span>Families updated</span><strong>${s.updFams}</strong></div>
+        <div class="stat"><span>New members</span><strong>${s.newMems}</strong></div>
+        <div class="stat"><span>Members updated</span><strong>${s.updMems}</strong></div>
+        <div class="stat"><span>Unchanged</span><strong>${s.same}</strong></div>
+        <div class="stat"><span>Problems</span><strong>${s.problems}</strong></div>
+      </div>
+      ${plan.unknown.length ? `<p class="notice small">These columns weren’t recognised and will be ignored: ${plan.unknown.map(esc).join(', ')}.</p>` : ''}
+      ${plan.problems.length ? `<details class="dir-problems" open><summary><strong>${plan.problems.length} row${plan.problems.length === 1 ? '' : 's'} need attention</strong></summary><ul>${plan.problems.map((p) => `<li>Row ${p.line}: ${esc(p.msg)}</li>`).join('')}</ul></details>` : ''}
+      ${nothing ? '<p class="empty">Everything in this file already matches the directory — nothing to import.</p>' : `<div class="table-wrap"><table class="table table--compact"><thead><tr><th>Change</th><th>Who</th><th>Details</th></tr></thead><tbody>${changeRows.join('')}</tbody></table></div>`}
+      <div class="progress" id="dir-progress" hidden><i></i></div>
+      <p class="form__msg" id="dir-msg" role="status"></p>
+    </section>`;
+}
+
+async function applyPlan(plan) {
+  const work = plan.famPlans.filter((f) => f.kind !== 'same').length + plan.items.filter((i) => i.kind !== 'same').length;
+  let done = 0, failed = 0; const errs = [];
+  const bar = $('#dir-progress'); bar.hidden = false;
+  const tick = () => { done++; $('i', bar).style.width = `${Math.round((done / Math.max(1, work)) * 100)}%`; $('#dir-msg').textContent = `Saving ${done} of ${work}…`; };
+  for (const fp of plan.famPlans) {
+    try {
+      if (fp.kind === 'new') {
+        const row = ok(await sb.from('families').insert({ status: 'active', ...fp.values }).select('id').single());
+        fp.id = row.id; tick();
+      } else {
+        fp.id = fp.existing.id;
+        if (fp.kind === 'update') { ok(await sb.from('families').update({ ...Object.fromEntries(fp.changes.map((k) => [k, fp.values[k]])), updated_at: new Date().toISOString() }).eq('id', fp.id)); tick(); }
+      }
+    } catch (e) { failed++; errs.push(`${fp.label}: ${friendly(e)}`); tick(); }
+  }
+  for (const it of plan.items) {
+    if (it.kind === 'same') continue;
+    try {
+      if (!it.fam.id) throw new Error('its family couldn’t be saved');
+      if (it.kind === 'new') ok(await sb.from('members').insert({ ...it.values, family_id: it.fam.id }));
+      else ok(await sb.from('members').update(it.values).eq('id', it.existing.id));
+    } catch (e) { failed++; errs.push(`Row ${it.line} (${it.name}): ${friendly(e)}`); }
+    tick();
+  }
+  return { done: work - failed, failed, errs };
+}
+
+VIEWS.directory = async () => {
+  if (ctx.dirPlan) return renderPlan(ctx.dirPlan);
+  const [{ count: famCount }, { count: memCount }] = await Promise.all([
+    sb.from('families').select('id', { count: 'exact', head: true }),
+    sb.from('members').select('id', { count: 'exact', head: true })
+  ]);
+  return `
+    <div class="grid-2">
+      <section class="pcard">
+        <h2>Upload a directory file</h2>
+        <p class="muted small">Upload a spreadsheet (Excel or CSV) with one row per person. You’ll see exactly what will change before anything is saved.</p>
+        <form id="dir-form" class="form form--flat">
+          <label class="drop" id="dir-drop">
+            <input type="file" name="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required>
+            <span class="drop__text"><strong>Choose a file</strong> or drag it here<br><small>Excel (.xlsx) or CSV · first row must be column headings</small></span>
+          </label>
+          <p class="form__msg" role="status"></p>
+        </form>
+        <h3>How updates work</h3>
+        <ul class="small dir-rules">
+          <li><strong>Families</strong> are matched by member number, or by family name if there’s no number.</li>
+          <li><strong>People</strong> are matched by email, or by first and last name within the family.</li>
+          <li>Matching people are <strong>updated</strong>; anyone new is <strong>added</strong>.</li>
+          <li><strong>Blank cells never erase</strong> existing information, and nobody is deleted.</li>
+          <li>Portal roles and logins are never changed by an upload.</li>
+        </ul>
+      </section>
+      <section class="pcard">
+        <h2>Download</h2>
+        <p class="muted small">The directory currently has <strong>${famCount ?? 0}</strong> families and <strong>${memCount ?? 0}</strong> members.</p>
+        <div class="dl-list">
+          <button class="dl" id="dl-current"><strong>Current directory</strong><span>Every family and member in the upload layout — edit it and upload it back to make bulk changes.</span></button>
+          <button class="dl" id="dl-template"><strong>Blank template</strong><span>The column headings with two example rows to show the layout.</span></button>
+        </div>
+        <h3>Columns</h3>
+        <p class="small muted">${DIR_COLUMNS.map(([, l]) => l).join(' · ')}</p>
+        <p class="small muted">Required: First name, Last name and Family name (or an existing Member number). Dates as YYYY-MM-DD or MM/DD/YYYY; Yes/No for Baptized, Confirmed and In directory.</p>
+      </section>
+    </div>`;
+};
+
+BIND.directory = () => {
+  if (ctx.dirPlan) {
+    $('#dir-cancel').onclick = () => { ctx.dirPlan = null; show('directory'); };
+    const apply = $('#dir-apply');
+    if (apply) apply.onclick = () => {
+      const s = planSummary(ctx.dirPlan);
+      confirmDialog('Import these changes?', `${s.newFams} new families, ${s.updFams} family updates, ${s.newMems} new members and ${s.updMems} member updates will be saved.`, async () => {
+        $('#dir-cancel').disabled = true; apply.disabled = true;
+        const res = await applyPlan(ctx.dirPlan);
+        ctx.dirPlan = null;
+        if (res.failed) {
+          view.innerHTML = `<section class="pcard"><h2>Import finished with problems</h2><p>${res.done} change${res.done === 1 ? '' : 's'} saved; ${res.failed} couldn’t be saved:</p><ul class="small">${res.errs.map((e) => `<li>${esc(e)}</li>`).join('')}</ul><button class="btn btn--primary btn--small" id="dir-again">Back to Directory Upload</button></section>`;
+          $('#dir-again').onclick = () => show('directory');
+        } else { toast(`Imported ${res.done} change${res.done === 1 ? '' : 's'}`); ctx.familyId = null; await show('members'); }
+      }, 'Import');
+    };
+    return;
+  }
+  const form = $('#dir-form'), input = form.file, drop = $('#dir-drop');
+  const handle = async (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1048576) return msg(form, 'That file is larger than 5 MB.', true);
+    msg(form, 'Reading the file…');
+    try {
+      const rows = await readSheet(file);
+      if (rows.length < 2) throw new Error('The file has no rows under the headings.');
+      if (rows.length > 3001) throw new Error('Please upload 3,000 rows or fewer at a time.');
+      ctx.dirFileName = file.name;
+      ctx.dirPlan = await planImport(rows);
+      await show('directory');
+    } catch (e) { msg(form, friendly(e), true); input.value = ''; }
+  };
+  input.onchange = () => handle(input.files[0]);
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('is-over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove('is-over')));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); handle(e.dataTransfer.files[0]); });
+
+  const headings = DIR_COLUMNS.map(([, l]) => l);
+  const toCsv = (rows) => [headings, ...rows].map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const yn = (b) => (b === true ? 'Yes' : b === false ? 'No' : '');
+  $('#dl-template').onclick = () => download('mtca-directory-template.csv', '﻿' + toCsv([
+    ['MTCA-0001', 'Thomas, Varghese & Mary', 'Varghese', 'Thomas', 'Head', 'varghese@example.com', '(770) 555-0101', '1971-04-12', '1998-05-23', 'Yes', 'Yes', 'Yes', '123 Example St', '', 'Duluth', 'GA', '30096', '(770) 555-0100', 'North Area', 'Maramon', '2009-08-01', 'active'],
+    ['MTCA-0001', 'Thomas, Varghese & Mary', 'Mary', 'Thomas', 'Spouse', 'mary@example.com', '(770) 555-0102', '', '', 'Yes', 'Yes', 'No', '', '', '', '', '', '', '', '', '', '']
+  ]));
+  $('#dl-current').onclick = async () => {
+    const fams = ok(await sb.from('families').select('*, members(*)').order('family_name'));
+    const rows = [];
+    fams.forEach((f) => {
+      const people = f.members.length ? f.members : [{}];
+      people.forEach((m) => rows.push(DIR_COLUMNS.map(([k, , t]) => { const src = t === 'family' ? f : m; const v = src[k]; return BOOL_FIELDS.has(k) ? yn(v) : v ?? ''; })));
+    });
+    download(`mtca-directory-${todayIso()}.csv`, '﻿' + toCsv(rows));
+  };
+};
+
+/* ---------------------------------------------------------------------
    Routing
 --------------------------------------------------------------------- */
 async function route() {
