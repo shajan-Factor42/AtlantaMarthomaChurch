@@ -2,13 +2,18 @@
 name: Mar Thoma Church, Atlanta
 email: marthomachurchatlanta@gmail.com
 
-# TODO: add the church street address — it isn't on the current website.
 address:
-  line1: ""
-  city: ""
+  line1: "6015 Old Stone Mountain Rd"
+  city: "Stone Mountain"
   state: GA
-  zip: ""
-map_embed_url: ""   # optional Google Maps embed URL
+  zip: "30087"
+phone: "770-342-8071"
+
+# Google Business Profile (official Google Maps listing)
+google_maps_url: "https://www.google.com/maps?cid=11895892531927657911"
+google_place_id: "ChIJu99mh_yo9YgRty3FCzuzFqU"
+directions_url: "https://www.google.com/maps/dir/?api=1&destination=Mar+Thoma+Church+Atlanta&destination_place_id=ChIJu99mh_yo9YgRty3FCzuzFqU"
+map_embed_url: "https://maps.google.com/maps?q=Mar%20Thoma%20Church%2C%20Atlanta%2C%206015%20Old%20Stone%20Mountain%20Rd%2C%20Stone%20Mountain%2C%20GA%2030087&z=15&output=embed"
 
 worship:
   time: "10:00 AM"

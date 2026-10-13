@@ -14,7 +14,8 @@
     <div>
       <h3>Contact</h3>
       {% if site.data.church.address.line1 != "" %}
-      <p>{{ site.data.church.address.line1 }}<br>{{ site.data.church.address.city }}, {{ site.data.church.address.state }} {{ site.data.church.address.zip }}</p>
+      <p><a href="{{ site.data.church.google_maps_url }}" target="_blank" rel="noopener">{{ site.data.church.address.line1 }}<br>{{ site.data.church.address.city }}, {{ site.data.church.address.state }} {{ site.data.church.address.zip }}</a></p>
+      <p><a href="{{ site.data.church.directions_url }}" target="_blank" rel="noopener">Get directions →</a></p>
       {% endif %}
       <p>Vicar: <a href="tel:{{ site.data.leadership.vicar.phone | remove: '-' }}">{{ site.data.leadership.vicar.phone }}</a></p>
       <p><a href="mailto:{{ site.data.church.email }}">{{ site.data.church.email }}</a></p>

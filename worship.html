@@ -28,13 +28,10 @@ description: Sunday worship at Mar Thoma Church, Atlanta begins at 10 AM — Mal
       <p class="eyebrow">Upcoming Sundays</p>
       <ul class="schedule schedule--upcoming" data-upcoming-sundays></ul>
       <hr>
-      {% if c.address.line1 != "" %}
       <p class="eyebrow">Location</p>
-      <p>{{ c.address.line1 }}<br>{{ c.address.city }}, {{ c.address.state }} {{ c.address.zip }}</p>
-      <p><a class="text-link" href="https://maps.google.com/?q={{ c.address.line1 | append: ' ' | append: c.address.city | append: ' ' | append: c.address.state | url_encode }}" target="_blank" rel="noopener">Get directions →</a></p>
-      {% else %}
-      <p class="muted">For directions, please call the Vicar at {{ site.data.leadership.vicar.phone }}.</p>
-      {% endif %}
+      <p><strong>{{ c.name }}</strong><br>{{ c.address.line1 }}<br>{{ c.address.city }}, {{ c.address.state }} {{ c.address.zip }}</p>
+      <div class="map-embed"><iframe src="{{ c.map_embed_url }}" title="Map to {{ c.name }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div>
+      <p class="btn-row-inline"><a class="btn btn--primary btn--small" href="{{ c.directions_url }}" target="_blank" rel="noopener">Get directions</a> <a class="text-link" href="{{ c.google_maps_url }}" target="_blank" rel="noopener">View on Google Maps →</a></p>
     </aside>
   </div>
 </section>

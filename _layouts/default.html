@@ -27,8 +27,20 @@
     "name": "{{ site.data.church.name }}",
     "url": "{{ site.url }}",
     "email": "{{ site.data.church.email }}",
-    "telephone": "{{ site.data.leadership.vicar.phone }}",
-    "description": "{{ site.description | strip_newlines }}"
+    "telephone": "+1-{{ site.data.church.phone }}",
+    "description": "{{ site.description | strip_newlines }}",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "{{ site.data.church.address.line1 }}",
+      "addressLocality": "{{ site.data.church.address.city }}",
+      "addressRegion": "{{ site.data.church.address.state }}",
+      "postalCode": "{{ site.data.church.address.zip }}",
+      "addressCountry": "US"
+    },
+    "geo": { "@type": "GeoCoordinates", "latitude": 33.8280514, "longitude": -84.1410687 },
+    "hasMap": "{{ site.data.church.google_maps_url }}",
+    "sameAs": ["{{ site.data.church.google_maps_url }}", "{{ site.data.church.livestream_url }}"],
+    "openingHoursSpecification": { "@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "10:00" }
   }
   </script>
   {% endif %}
