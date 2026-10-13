@@ -21,5 +21,10 @@ description: Photos from the life of Mar Thoma Church, Atlanta.
       {% endfor %}
     </div>
     {% endfor %}
+    <div class="member-album" data-member-gallery hidden>
+      <h2 class="album-title">Shared by our members</h2>
+      <div class="gallery" data-lightbox-group data-member-photos></div>
+    </div>
+    <p class="muted center">Have photos from a parish event? Members can share them from the <a href="{{ '/members/' | relative_url }}#photos">member portal</a>.</p>
   </div>
 </section>

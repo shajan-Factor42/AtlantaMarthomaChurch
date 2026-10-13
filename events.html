@@ -1,0 +1,39 @@
+---
+layout: default
+title: Events
+permalink: /events/
+description: Upcoming services, meetings and special events at Mar Thoma Church, Atlanta.
+---
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Events</p>
+    <h1>Parish calendar</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap cal-layout" data-events-calendar>
+    <div class="cal">
+      <div class="cal__bar">
+        <h2 data-cal-label>&nbsp;</h2>
+        <div class="cal__nav">
+          <button class="btn btn--outline btn--small" data-cal-today>Today</button>
+          <button class="cal__arrow" data-cal-prev aria-label="Previous month">‹</button>
+          <button class="cal__arrow" data-cal-next aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="cal__head" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+      <div class="cal__grid" data-cal-grid></div>
+      <p class="muted small" data-cal-status role="status"></p>
+    </div>
+    <aside class="cal-side">
+      <h3>This month</h3>
+      <div data-cal-list></div>
+      <div class="panel panel--tint cal-note">
+        <p class="eyebrow">Every Sunday</p>
+        <p><strong>Worship at {{ site.data.church.worship.time }}</strong><br>Malayalam on the 1st &amp; 3rd Sundays, English on the 2nd &amp; 4th.</p>
+        <a class="text-link" href="{{ site.data.church.livestream_url }}" target="_blank" rel="noopener">Watch live →</a>
+      </div>
+    </aside>
+  </div>
+</section>

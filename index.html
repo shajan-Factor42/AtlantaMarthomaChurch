@@ -85,13 +85,24 @@ layout: default
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="announcements">
   <div class="wrap">
     <div class="section__head section__head--row">
       <div>
         <p class="eyebrow">Announcements</p>
         <h2>What’s happening</h2>
       </div>
+      <a class="btn btn--outline" href="{{ '/events/' | relative_url }}">Events calendar</a>
+    </div>
+    <div class="home-news" data-home-dynamic hidden>
+      <div class="home-news__notices" data-block hidden>
+        <div class="notice-list" data-home-announcements></div>
+      </div>
+      <aside class="home-news__events panel" data-block hidden>
+        <h3>Coming up</h3>
+        <div data-home-events></div>
+        <a class="text-link" href="{{ '/events/' | relative_url }}">See the full calendar →</a>
+      </aside>
     </div>
     <div class="flyers" data-lightbox-group>
       {% for a in site.data.announcements %}

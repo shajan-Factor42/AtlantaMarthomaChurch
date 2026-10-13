@@ -53,8 +53,8 @@ All the images on the new site (logo, Vicar photo, flyers, gallery, banner, chur
 - `families` — one row per household (address, phone, prayer group, member number).
 - `members` — one row per person, linked to a family. Put an `email` on each adult who should be able to log in.
 - Use **Table Editor → Import data from CSV** for both tables (families first).
-- `contributions` / `pledges` — import past giving from your accounting spreadsheet, or have trustees enter it from **Officer Tools** in the portal.
-- Make the secretary and trustees officers: set `role` = `officer` (or `admin`) on their member rows.
+- `contributions` / `pledges` — import past giving from your accounting spreadsheet, or have trustees enter it from **Admin → Giving**.
+- Make the secretary and trustees officers: in **Admin → Members**, edit their record and set Portal role to Officer (only an admin can do this).
 - Members-only documents and announcements: add rows to `member_documents` (link to a file in Supabase Storage or Google Drive) and `member_announcements`.
 
 Want to test first? `supabase/sample-data.sql` creates one sample family — put your email in it, run it, and invite yourself.
@@ -63,16 +63,23 @@ Want to test first? `supabase/sample-data.sql` creates one sample family — put
 **Authentication → Users → Invite user** with the member's email. When they click the invite, their login links automatically to their member row (matched by email). They can set a password under **Account**, or always use "Email me a sign-in link".
 
 ### What members can see and do
-| Area | Members | Officers / admin |
+| Area | Members (`/members/`) | Officers & admins (`/admin/`) |
 |---|---|---|
-| Profile & household | View; edit phone, address, birthday, directory opt-in | View all |
-| Family | Own family only | All families |
-| Giving | Own family's statement, printable per year | Record contributions, view any family |
-| Directory | Only people who opted in, contact fields only | — |
-| Documents & announcements | Yes | Yes |
-| Export register (CSV) | — | Yes |
+| Profile & household | View; edit phone, address, birthday, directory opt-in | Add/edit/delete families and members |
+| Portal access | — | Email an invitation or set a starting password; admins can reset passwords or remove access |
+| Giving | Own family's statement, printable per year | Record contributions, set pledges, export CSVs |
+| Announcements | Members + "both" announcements | Post to the home page, the portal, or both; pin; expire |
+| Events | Public + members-only events | Add/edit events; drafts and members-only |
+| Documents | Read | Upload files or add links |
+| Photos | Submit photos for review | Approve/decline; approved photos appear on the Gallery |
+| Portal settings | — | Admins only: turn portal tabs on/off, photo limits, home-page blocks |
 
-Changes to names, member numbers, prayer groups or sacramental records go through the secretary (edit in the Supabase Table Editor).
+Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also roles + settings). Only an admin can change roles.
+
+### Database files
+- `supabase/schema.sql` — core tables and privacy rules.
+- `supabase/002_admin_events_photos.sql` — events, photo submissions, portal settings, admin write access, file storage.
+- `supabase/functions/admin-users/` — server function behind "Portal access" (deployed as `admin-users`).
 
 ## 4. Switch the domain (≈15 min + DNS propagation)
 

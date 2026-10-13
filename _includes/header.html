@@ -20,6 +20,7 @@
       <a href="{{ '/' | relative_url }}" {% if p == '/' %}aria-current="page"{% endif %}>Home</a>
       <a href="{{ '/about/' | relative_url }}" {% if p contains '/about' %}aria-current="page"{% endif %}>About</a>
       <a href="{{ '/worship/' | relative_url }}" {% if p contains '/worship' %}aria-current="page"{% endif %}>Worship</a>
+      <a href="{{ '/events/' | relative_url }}" {% if p contains '/events' %}aria-current="page"{% endif %}>Events</a>
       <a href="{{ '/organizations/' | relative_url }}" {% if p contains '/organizations' %}aria-current="page"{% endif %}>Organizations</a>
       <a href="{{ '/gallery/' | relative_url }}" {% if p contains '/gallery' %}aria-current="page"{% endif %}>Gallery</a>
       <a href="{{ '/newsletters/' | relative_url }}" {% if p contains '/newsletters' %}aria-current="page"{% endif %}>Newsletters</a>

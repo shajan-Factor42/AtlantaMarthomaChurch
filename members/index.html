@@ -16,10 +16,6 @@ description: Member login for Mar Thoma Church, Atlanta.
     </div>
   </div>
   <div class="auth__panel">
-    <div class="demo-banner" data-demo hidden>
-      <strong>Preview mode.</strong> The database isn’t connected yet, so any email and password will open a sample account.
-    </div>
-
     <form id="login-form" class="form" novalidate>
       <h2>Sign in</h2>
       <label>Email<input type="email" name="email" autocomplete="email" required></label>
@@ -50,7 +46,10 @@ description: Member login for Mar Thoma Church, Atlanta.
         <p class="eyebrow eyebrow--light">Member Portal</p>
         <h1 id="hello">Welcome</h1>
       </div>
-      <button class="btn btn--ghost btn--small" id="sign-out">Sign out</button>
+      <div class="portal__bar-actions">
+        <a class="btn btn--gold btn--small" id="admin-link" href="{{ '/admin/' | relative_url }}" hidden>Admin</a>
+        <button class="btn btn--ghost btn--small" id="sign-out">Sign out</button>
+      </div>
     </div>
   </div>
   <div class="wrap portal__body">
@@ -62,8 +61,8 @@ description: Member login for Mar Thoma Church, Atlanta.
       <button data-tab="organizations">Organizations</button>
       <button data-tab="directory">Directory</button>
       <button data-tab="documents">Documents</button>
+      <button data-tab="photos">Share Photos</button>
       <button data-tab="account">Account</button>
-      <button data-tab="officer" data-officer hidden>Officer Tools</button>
     </nav>
     <div id="view" class="view" aria-live="polite"></div>
   </div>
@@ -78,5 +77,4 @@ description: Member login for Mar Thoma Church, Atlanta.
 </div>
 
 <script>window.MTCA = { churchName: {{ site.data.church.name | jsonify }}, orgs: {{ site.data.organizations | map: 'name' | jsonify }} };</script>
-<script src="{{ '/assets/js/config.js' | relative_url }}"></script>
 <script type="module" src="{{ '/assets/js/portal.js' | relative_url }}"></script>

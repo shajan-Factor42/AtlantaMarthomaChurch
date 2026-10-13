@@ -1,0 +1,61 @@
+---
+layout: default
+title: Admin
+permalink: /admin/
+portal: true
+description: Parish administration for Mar Thoma Church, Atlanta.
+---
+<!-- ============ SIGN-IN ============ -->
+<section class="auth auth--admin" id="auth-view" hidden>
+  <div class="auth__art" style="--auth-img: url('{{ site.media_base }}/2026/03/gallery_banner.jpg')">
+    <div>
+      <p class="eyebrow eyebrow--light">Parish Admin</p>
+      <h1>Admin sign-in</h1>
+      <p>For the Vicar, secretary, trustees and other officers who maintain the parish register, announcements, events and the member portal.</p>
+      <p class="auth__help">Use the same email and password as the member portal. Your account needs the officer or admin role.</p>
+    </div>
+  </div>
+  <div class="auth__panel">
+    <form id="login-form" class="form" novalidate>
+      <h2>Sign in</h2>
+      <label>Email<input type="email" name="email" autocomplete="email" required></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="btn btn--primary btn--block" type="submit">Sign in</button>
+      <p class="form__msg" role="status"></p>
+    </form>
+  </div>
+</section>
+
+<!-- ============ ADMIN ============ -->
+<section class="portal portal--admin" id="app-view" hidden>
+  <div class="portal__bar">
+    <div class="wrap portal__bar-inner">
+      <div>
+        <p class="eyebrow eyebrow--light">Parish Admin</p>
+        <h1 id="hello">Admin</h1>
+      </div>
+      <div class="portal__bar-actions">
+        <a class="btn btn--ghost btn--small" href="{{ '/members/' | relative_url }}">Member portal</a>
+        <button class="btn btn--ghost btn--small" id="sign-out">Sign out</button>
+      </div>
+    </div>
+  </div>
+  <div class="wrap portal__body">
+    <nav class="tabs" id="tabs" aria-label="Admin">
+      <button data-tab="overview" aria-selected="true">Overview</button>
+      <button data-tab="members">Members</button>
+      <button data-tab="giving">Giving</button>
+      <button data-tab="announcements">Announcements</button>
+      <button data-tab="events">Events</button>
+      <button data-tab="documents">Documents</button>
+      <button data-tab="photos">Photos <span class="count" id="photo-count" hidden></span></button>
+      <button data-tab="settings" data-admin-only>Portal Settings</button>
+    </nav>
+    <div id="view" class="view" aria-live="polite"></div>
+  </div>
+</section>
+
+<div class="loading" id="loading">Loading…</div>
+
+<script>window.MTCA = { churchName: {{ site.data.church.name | jsonify }}, orgs: {{ site.data.organizations | map: 'name' | jsonify }} };</script>
+<script type="module" src="{{ '/assets/js/admin.js' | relative_url }}"></script>
