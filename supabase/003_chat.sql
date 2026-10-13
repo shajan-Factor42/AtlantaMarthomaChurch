@@ -23,7 +23,7 @@ begin
 end $$;
 
 insert into public.portal_settings (key, value) values
-  ('chat', '{"enabled":true,"greeting":"Hi! I’m the parish assistant for Mar Thoma Church, Atlanta. Ask me about service times, upcoming events, our organizations or how to reach the church office.","hourly_limit":30,"daily_site_limit":1500}');
+  ('chat', '{"enabled":true,"greeting":"Hi! I’m Mitra AI, the assistant for Mar Thoma Church, Atlanta. Ask me about service times, upcoming events, our organizations or how to reach the church office.","hourly_limit":30,"daily_site_limit":1500}');
 
 revoke execute on function public.chat_hit(text, timestamptz, int) from public, anon, authenticated;
 grant  execute on function public.chat_hit(text, timestamptz, int) to service_role;

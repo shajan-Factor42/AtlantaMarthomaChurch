@@ -76,11 +76,11 @@ Want to test first? `supabase/sample-data.sql` creates one sample family — put
 
 Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also roles + settings). Only an admin can change roles.
 
-### Chat assistant ("Ask us")
+### Mitra AI chat assistant ("Ask Mitra AI")
 - A Claude-powered chat bubble on the public site and member portal (not the admin console). It answers only from `assets/chat-knowledge.json` (built from `_data/`), plus live public events and home-page announcements.
 - Backend: Supabase function `chat` (`supabase/functions/chat`) using Claude Haiku 5.5. It needs the secret **ANTHROPIC_API_KEY** (Supabase → Edge Functions → Secrets).
 - Limits: 30 messages per visitor per hour and 1,500 per day site-wide (change the hourly limit in Admin → Portal Settings). No conversation text is stored.
-- Turn it on/off or change the greeting in **Admin → Portal Settings → Chat assistant**.
+- Turn it on/off or change the greeting in **Admin → Portal Settings → Mitra AI chat**.
 - At DNS cutover nothing changes: the function already accepts mtcatlanta.org.
 
 ### Database files

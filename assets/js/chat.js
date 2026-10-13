@@ -1,4 +1,4 @@
-// Parish chat assistant — floating chat bubble.
+// Mitra AI — the parish chat assistant (floating chat bubble).
 // Talks to the Supabase "chat" function; the conversation stays in this browser tab only.
 (function () {
   const CFG = window.MTCA_CONFIG || {};
@@ -8,7 +8,7 @@
   const SUGGESTIONS = ['What time is Sunday service?', 'Is this Sunday in English or Malayalam?', 'What’s coming up this month?', 'How do I contact the Vicar?'];
   const EMAIL = 'marthomachurchatlanta@gmail.com';
   const CONTACT_URL = new URL((window.MTCA_SITE && window.MTCA_SITE.contact) || '/contact-us/', location.href).href;
-  let greeting = 'Hi! I’m the parish assistant for Mar Thoma Church, Atlanta. Ask me about service times, upcoming events, our organizations or how to reach the church office.';
+  let greeting = 'Hi! I’m Mitra AI, the assistant for Mar Thoma Church, Atlanta. Ask me about service times, upcoming events, our organizations or how to reach the church office.';
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // Small, safe markdown: links, bold, bullet lists, line breaks
@@ -39,12 +39,12 @@
   root.innerHTML = `
     <button class="chatw__launcher" aria-expanded="false" aria-controls="chatw-panel">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg>
-      <span>Ask us</span>
+      <span>Ask Mitra AI</span>
     </button>
-    <section class="chatw__panel" id="chatw-panel" role="dialog" aria-label="Parish assistant" hidden>
+    <section class="chatw__panel" id="chatw-panel" role="dialog" aria-label="Mitra AI" hidden>
       <header class="chatw__head">
         <div class="chatw__avatar" aria-hidden="true">☩</div>
-        <div><strong>Parish assistant</strong><small>Mar Thoma Church, Atlanta</small></div>
+        <div><strong>Mitra AI</strong><small>Mar Thoma Church, Atlanta</small></div>
         <button class="chatw__icon" data-reset title="Start over" aria-label="Start a new conversation"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></button>
         <button class="chatw__icon" data-close aria-label="Close chat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </header>
@@ -54,7 +54,7 @@
         <textarea rows="1" maxlength="1000" placeholder="Type your question…" aria-label="Your question"></textarea>
         <button type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg></button>
       </form>
-      <p class="chatw__note">AI assistant — answers can be wrong. For pastoral care, please contact the Vicar.</p>
+      <p class="chatw__note">Mitra AI can make mistakes. For pastoral care, please contact the Vicar.</p>
     </section>`;
   document.body.appendChild(root);
 
@@ -69,7 +69,7 @@
   function draw() {
     log.innerHTML = `<div class="chatw__msg chatw__msg--bot">${render(greeting)}</div>` +
       messages.map((m) => `<div class="chatw__msg chatw__msg--${m.role === 'user' ? 'me' : m.error ? 'err' : 'bot'}">${m.role === 'user' ? `<p>${esc(m.content)}</p>` : render(m.content)}</div>`).join('') +
-      (busy ? '<div class="chatw__msg chatw__msg--bot chatw__typing" aria-label="Assistant is typing"><i></i><i></i><i></i></div>' : '');
+      (busy ? '<div class="chatw__msg chatw__msg--bot chatw__typing" aria-label="Mitra AI is typing"><i></i><i></i><i></i></div>' : '');
     chips.innerHTML = messages.length ? '' : SUGGESTIONS.map((s) => `<button type="button">${esc(s)}</button>`).join('');
     log.scrollTop = log.scrollHeight;
   }

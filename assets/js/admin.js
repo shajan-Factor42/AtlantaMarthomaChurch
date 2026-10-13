@@ -415,9 +415,9 @@ const VIEWS = {
           </div>
         </section>
         <section class="pcard">
-          <h2>Chat assistant</h2>
-          <p class="muted small">The “Ask us” chat on the public site and member portal. It answers from the website, events and home-page announcements.</p>
-          <label class="toggle"><input type="checkbox" name="chat_enabled" ${s.chat.enabled !== false ? 'checked' : ''}><span>Show the chat assistant</span></label>
+          <h2>Mitra AI chat</h2>
+          <p class="muted small">The “Ask Mitra AI” chat on the public site and member portal. It answers from the website, events and home-page announcements.</p>
+          <label class="toggle"><input type="checkbox" name="chat_enabled" ${s.chat.enabled !== false ? 'checked' : ''}><span>Show Mitra AI</span></label>
           <div class="form form--flat">
             <label>Greeting<textarea name="chat_greeting" rows="3" maxlength="400">${esc(s.chat.greeting || '')}</textarea></label>
             <label>Messages allowed per visitor per hour<input type="number" name="chat_hourly" min="5" max="200" value="${esc(s.chat.hourly_limit ?? 30)}"></label>

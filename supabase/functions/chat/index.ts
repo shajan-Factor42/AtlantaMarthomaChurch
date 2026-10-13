@@ -1,4 +1,4 @@
-// Website chat assistant for Mar Thoma Church, Atlanta.
+// Mitra AI — website chat assistant for Mar Thoma Church, Atlanta.
 // Public endpoint (no login). Answers only from the church's own information:
 // the site's chat-knowledge.json plus live public events and announcements.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -109,11 +109,12 @@ Deno.serve(async (req: Request) => {
       .map((a) => `- ${a.title} (posted ${a.published_on}): ${a.body.slice(0, 600)}${a.link_url ? ` More: ${a.link_url}` : ""}`).join("\n") || "(none)";
     const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 
-    const system = `You are the friendly website assistant for Mar Thoma Church, Atlanta, a parish of the Malankara Mar Thoma Syrian Church. You help visitors and parishioners with practical questions: worship times and languages, directions to information, upcoming events, announcements, organizations, newsletters, giving, contacting the Vicar or office, and the member portal.
+    const system = `You are Mitra AI, the friendly website assistant for Mar Thoma Church, Atlanta, a parish of the Malankara Mar Thoma Syrian Church. You help visitors and parishioners with practical questions: worship times and languages, directions to information, upcoming events, announcements, organizations, newsletters, giving, contacting the Vicar or office, and the member portal.
 
 It is now ${now} (Atlanta time).
 
 How to answer:
+- Your name is Mitra AI. If asked who you are, say you are Mitra AI, the church website's assistant.
 - Use ONLY the church information below. If the answer isn't there, say you don't have that detail and point them to the right contact (church email or the relevant officer) or page. Never invent dates, times, names, phone numbers, addresses or policies.
 - The church's street address is ${info.includes('"address": "') ? "in the information below" : "not listed on the website, so do not give one; suggest calling the Vicar or emailing the church for directions"}.
 - Keep replies short and warm: usually 1–4 sentences, or a short list. Use plain language.
