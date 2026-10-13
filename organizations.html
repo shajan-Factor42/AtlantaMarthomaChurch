@@ -1,0 +1,27 @@
+---
+layout: default
+title: Organizations
+permalink: /organizations/
+description: Parish organizations at Mar Thoma Church, Atlanta — fellowship and service for every age.
+---
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Organizations</p>
+    <h1>A place for every generation</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="cards cards--3">
+      {% for o in site.data.organizations %}
+      <article class="card card--feature">
+        <div class="card__icon" aria-hidden="true">✦</div>
+        <h3>{{ o.name }}</h3>
+        <p>{{ o.blurb }}</p>
+      </article>
+      {% endfor %}
+    </div>
+    <p class="muted center">Interested in getting involved? <a href="{{ '/contact-us/' | relative_url }}">Contact the church office</a>.</p>
+  </div>
+</section>

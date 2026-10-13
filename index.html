@@ -1,0 +1,143 @@
+---
+layout: default
+---
+{% assign m = site.media_base %}
+{% assign v = site.data.leadership.vicar %}
+<section class="hero" style="--hero-img: url('{{ m }}/2026/03/gallery_banner.jpg')">
+  <div class="wrap hero__inner">
+    <p class="eyebrow eyebrow--light">Mar Thoma Church, Atlanta</p>
+    <h1>Share our faith and love to all</h1>
+    <p class="hero__lead">Come and experience God’s presence with us this Sunday.</p>
+    <div class="hero__actions">
+      <a class="btn btn--gold" href="{{ '/worship/' | relative_url }}">Plan your visit</a>
+      <a class="btn btn--ghost" href="{{ site.data.church.livestream_url }}" target="_blank" rel="noopener"><span class="live-dot"></span> Watch live</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Welcome</p>
+      <h2>Welcome to Mar Thoma Church, Atlanta</h2>
+      <p>We have been worshipping in Atlanta for more than forty years — first as the Atlanta Mar Thoma Church and Hermon Mar Thoma Church. In December 2018 the two congregations came together as one: Mar Thoma Church, Atlanta.</p>
+      <p>We welcome you in the name of our Lord and Savior, Jesus Christ, to come and worship with us.</p>
+      <a class="text-link" href="{{ '/about/' | relative_url }}">Our story →</a>
+    </div>
+    <aside class="service-card">
+      <p class="eyebrow">This Sunday</p>
+      <p class="service-card__time">{{ site.data.church.worship.time }}</p>
+      <p class="service-card__lang"><span data-sunday-language>Sunday</span> service</p>
+      <p class="service-card__date" data-sunday-date></p>
+      <hr>
+      <ul class="schedule">
+        <li><span>1st &amp; 3rd Sundays</span><strong>Malayalam</strong></li>
+        <li><span>2nd &amp; 4th Sundays</span><strong>English</strong></li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<section class="section section--tint">
+  <div class="wrap">
+    <div class="section__head">
+      <p class="eyebrow">Our Leadership &amp; Community</p>
+      <h2>Guided by dedicated leadership</h2>
+      <p class="muted">Our church is guided by dedicated leadership and supported by active organizations, working together to nurture spiritual growth, strengthen fellowship and serve the community.</p>
+    </div>
+    <div class="cards cards--3">
+      <article class="card card--person">
+        <img src="{{ m }}/{{ v.photo }}" alt="{{ v.name }}" loading="lazy">
+        <div class="card__body">
+          <p class="eyebrow">Our Vicar</p>
+          <h3>{{ v.name }}</h3>
+          <p>{{ v.bio }}</p>
+          <p><a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a> · <a href="mailto:{{ v.email }}">Email Achen</a></p>
+        </div>
+      </article>
+      <article class="card card--feature">
+        <div class="card__icon" aria-hidden="true">✦</div>
+        <h3>Organizations</h3>
+        <p>Sunday School, Yuvajana Sakhyam, Sevika Sangham and more — there is a place for every age to grow and serve.</p>
+        <a class="text-link" href="{{ '/organizations/' | relative_url }}">Find your fellowship →</a>
+      </article>
+      <article class="card card--feature">
+        <div class="card__icon" aria-hidden="true">☩</div>
+        <h3>Executive Committee</h3>
+        <ul class="plain">
+          {% for o in site.data.leadership.officers %}<li><strong>{{ o.title }}</strong><br>{{ o.name }}</li>{% endfor %}
+        </ul>
+        <a class="text-link" href="{{ '/contact-us/' | relative_url }}">Contact details →</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="live-band">
+  <div class="wrap live-band__inner">
+    <div class="live-band__text">
+      <p class="eyebrow eyebrow--light"><span class="live-dot"></span> Live every Sunday</p>
+      <h2>Stream MTC Atlanta live online</h2>
+      <p>Can’t make it in person? Join the service live on YouTube from wherever you are.</p>
+      <a class="btn btn--gold" href="{{ site.data.church.livestream_url }}" target="_blank" rel="noopener">Open on YouTube</a>
+    </div>
+    {% include video.html %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section__head section__head--row">
+      <div>
+        <p class="eyebrow">Announcements</p>
+        <h2>What’s happening</h2>
+      </div>
+    </div>
+    <div class="flyers" data-lightbox-group>
+      {% for a in site.data.announcements %}
+      <a class="flyer" href="{{ m }}/{{ a.image }}" data-lightbox>
+        <img src="{{ m }}/{{ a.image }}" alt="{{ a.title }}" loading="lazy">
+        <span>{{ a.title }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section section--tint">
+  <div class="wrap">
+    <div class="section__head section__head--row">
+      <div>
+        <p class="eyebrow">Moments We Cherish</p>
+        <h2>Our journey, together</h2>
+      </div>
+      <a class="btn btn--outline" href="{{ '/gallery/' | relative_url }}">Our gallery</a>
+    </div>
+    <div class="mosaic" data-lightbox-group>
+      {% for photo in site.data.gallery[0].photos limit: 5 %}
+      <a href="{{ m }}/{{ photo }}" data-lightbox><img src="{{ m }}/{{ photo }}" alt="Parish moment" loading="lazy"></a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap split split--even">
+    <div class="panel">
+      <p class="eyebrow">Newsletters</p>
+      <h2>Read the latest parish news</h2>
+      <ul class="doc-list">
+        {% for n in site.data.newsletters limit: 3 %}
+        <li><a href="{{ m }}/{{ n.file }}" target="_blank" rel="noopener"><span class="doc-icon">PDF</span> Newsletter — {{ n.title }}</a></li>
+        {% endfor %}
+      </ul>
+      <a class="text-link" href="{{ '/newsletters/' | relative_url }}">All newsletters →</a>
+    </div>
+    <div class="panel panel--dark">
+      <p class="eyebrow eyebrow--light">Members</p>
+      <h2>Your parish account</h2>
+      <p>Update your family’s details, view your contribution statement and access members-only documents.</p>
+      <a class="btn btn--gold" href="{{ '/members/' | relative_url }}">Member login</a>
+    </div>
+  </div>
+</section>

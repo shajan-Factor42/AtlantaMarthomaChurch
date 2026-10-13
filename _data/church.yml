@@ -1,0 +1,33 @@
+# Core church details. Edit here and every page updates.
+name: Mar Thoma Church, Atlanta
+email: marthomachurchatlanta@gmail.com
+
+# TODO: add the church street address — it isn't on the current website.
+address:
+  line1: ""
+  city: ""
+  state: GA
+  zip: ""
+map_embed_url: ""   # optional Google Maps embed URL
+
+worship:
+  time: "10:00 AM"
+  day: Sunday
+  # Which language is used on each Sunday of the month
+  schedule:
+    1: Malayalam
+    2: English
+    3: Malayalam
+    4: English
+    5: "See announcements"
+
+livestream_url: "https://www.youtube.com/watch?v=Pb5sNO5pIcA"
+livestream_video_id: "Pb5sNO5pIcA"   # the video embedded on the home and worship pages
+
+giving:
+  payable_to: "Mar Thoma Church, Atlanta (or MTCA)"
+  note: "Donations and subscriptions can be made by check. Please hand to a trustee or mail to the church."
+
+social:
+  youtube: "https://www.youtube.com/watch?v=Pb5sNO5pIcA"
+  facebook: ""

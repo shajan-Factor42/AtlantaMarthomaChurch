@@ -1,0 +1,25 @@
+---
+layout: default
+title: Gallery
+permalink: /gallery/
+description: Photos from the life of Mar Thoma Church, Atlanta.
+---
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Gallery</p>
+    <h1>Moments we cherish</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    {% for album in site.data.gallery %}
+    <h2 class="album-title">{{ album.album }}</h2>
+    <div class="gallery" data-lightbox-group>
+      {% for photo in album.photos %}
+      <a href="{{ site.media_base }}/{{ photo }}" data-lightbox><img src="{{ site.media_base }}/{{ photo }}" alt="{{ album.album }} — photo {{ forloop.index }}" loading="lazy"></a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</section>

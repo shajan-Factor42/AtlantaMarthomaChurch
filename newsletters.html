@@ -1,0 +1,22 @@
+---
+layout: default
+title: Newsletters
+permalink: /newsletters/
+description: Monthly newsletters from Mar Thoma Church, Atlanta.
+---
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Newsletters</p>
+    <h1>Parish newsletters</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap narrow">
+    <ul class="doc-list doc-list--large">
+      {% for n in site.data.newsletters %}
+      <li><a href="{{ site.media_base }}/{{ n.file }}" target="_blank" rel="noopener"><span class="doc-icon">PDF</span><span><strong>Newsletter — {{ n.title }}</strong><small>Open PDF</small></span></a></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>

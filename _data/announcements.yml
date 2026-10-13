@@ -1,0 +1,7 @@
+# Flyers shown on the home page. "image" is relative to media_base.
+- title: Aneste
+  image: 2026/03/aneste.jpeg
+- title: One-Day Retreat
+  image: 2026/03/one-day-retreat.jpeg
+- title: This Week's Schedule
+  image: 2026/03/week-schedule.jpeg

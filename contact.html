@@ -1,0 +1,47 @@
+---
+layout: default
+title: Contact Us
+permalink: /contact-us/
+description: Contact the Vicar, executive committee and trustees of Mar Thoma Church, Atlanta.
+---
+{% assign v = site.data.leadership.vicar %}
+{% assign c = site.data.church %}
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Contact</p>
+    <h1>We’d love to hear from you</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="cards cards--3 contact-cards">
+      <article class="card">
+        <p class="eyebrow">{{ v.title }}</p>
+        <h3>{{ v.name }}</h3>
+        <p><a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a><br><a href="mailto:{{ v.email }}">{{ v.email }}</a></p>
+      </article>
+      {% for o in site.data.leadership.officers %}
+      <article class="card">
+        <p class="eyebrow">{{ o.title }}</p>
+        <h3>{{ o.name }}</h3>
+        <p>{% if o.phone %}<a href="tel:{{ o.phone | remove: '(' | remove: ')' | remove: ' ' | remove: '-' }}">{{ o.phone }}</a>{% endif %}{% if o.email %}<br><a href="mailto:{{ o.email }}">{{ o.email }}</a>{% endif %}</p>
+      </article>
+      {% endfor %}
+      <article class="card card--accent">
+        <p class="eyebrow">Church email</p>
+        <h3>General enquiries</h3>
+        <p><a href="mailto:{{ c.email }}">{{ c.email }}</a></p>
+      </article>
+    </div>
+
+    <div class="panel panel--tint giving">
+      <div>
+        <p class="eyebrow">Donations &amp; subscriptions</p>
+        <h2>Supporting the ministry</h2>
+        <p>Please make checks payable to <strong>{{ c.giving.payable_to }}</strong>. {{ c.giving.note }}</p>
+      </div>
+      <a class="btn btn--primary" href="{{ '/members/' | relative_url }}">View my giving statement</a>
+    </div>
+  </div>
+</section>

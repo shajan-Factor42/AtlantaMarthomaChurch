@@ -1,0 +1,23 @@
+title: Mar Thoma Church, Atlanta
+short_name: MTC Atlanta
+description: >-
+  Mar Thoma Church, Atlanta — a worshipping community of the Malankara Mar Thoma
+  Syrian Church. Sunday worship at 10 AM in Malayalam and English.
+url: "https://mtcatlanta.org"
+baseurl: ""
+lang: en
+
+# Where images and PDFs are served from.
+# Before DNS cutover, run scripts/import-wp-media.sh, then change this to "/wp-content/uploads".
+media_base: "https://mtcatlanta.org/wp-content/uploads"
+
+permalink: pretty
+markdown: kramdown
+
+exclude:
+  - README.md
+  - supabase/
+  - scripts/
+  - Gemfile
+  - Gemfile.lock
+  - vendor/

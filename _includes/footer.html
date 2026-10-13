@@ -1,0 +1,37 @@
+<footer class="site-footer">
+  <div class="wrap footer__grid">
+    <div>
+      <img class="footer__church" src="{{ site.media_base }}/2026/03/marthoma-church.png" alt="" onerror="this.style.display='none'">
+      <p class="footer__name">{{ site.data.church.name }}</p>
+      <p class="muted">A parish of the Malankara Mar Thoma Syrian Church, worshipping in Atlanta for more than forty years.</p>
+    </div>
+    <div>
+      <h3>Worship</h3>
+      <p>Every {{ site.data.church.worship.day }}, {{ site.data.church.worship.time }}</p>
+      <p class="muted">1st &amp; 3rd Sundays — Malayalam<br>2nd &amp; 4th Sundays — English</p>
+      <p><a href="{{ site.data.church.livestream_url }}" target="_blank" rel="noopener">Watch the live stream →</a></p>
+    </div>
+    <div>
+      <h3>Contact</h3>
+      {% if site.data.church.address.line1 != "" %}
+      <p>{{ site.data.church.address.line1 }}<br>{{ site.data.church.address.city }}, {{ site.data.church.address.state }} {{ site.data.church.address.zip }}</p>
+      {% endif %}
+      <p>Vicar: <a href="tel:{{ site.data.leadership.vicar.phone | remove: '-' }}">{{ site.data.leadership.vicar.phone }}</a></p>
+      <p><a href="mailto:{{ site.data.church.email }}">{{ site.data.church.email }}</a></p>
+    </div>
+    <div>
+      <h3>Explore</h3>
+      <ul class="footer__links">
+        <li><a href="{{ '/worship/' | relative_url }}">Worship</a></li>
+        <li><a href="{{ '/organizations/' | relative_url }}">Organizations</a></li>
+        <li><a href="{{ '/gallery/' | relative_url }}">Gallery</a></li>
+        <li><a href="{{ '/newsletters/' | relative_url }}">Newsletters</a></li>
+        <li><a href="{{ '/members/' | relative_url }}">Member Login</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="wrap footer__bottom">
+    <span>© {{ site.time | date: '%Y' }} {{ site.data.church.name }}. All rights reserved.</span>
+    <a href="#top">Back to top ↑</a>
+  </div>
+</footer>

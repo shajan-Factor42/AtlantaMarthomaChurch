@@ -1,0 +1,14 @@
+# Parish organizations. The current site's Organizations menu was empty, so these are the
+# standard Mar Thoma parish organizations — confirm, edit or remove before launch.
+- name: Sunday School
+  blurb: Faith formation for children and youth, rooted in Scripture and the life of the Church.
+- name: Yuvajana Sakhyam
+  blurb: The young adults' fellowship — Bible study, service projects and friendship.
+- name: Sevika Sangham
+  blurb: The women's fellowship, serving through prayer, mission support and care for one another.
+- name: Edavaka Mission
+  blurb: The parish mission wing, supporting evangelism and outreach in Atlanta and abroad.
+- name: Choir
+  blurb: Leading the congregation in worship through Malayalam and English hymns.
+- name: Senior Fellowship
+  blurb: Fellowship, prayer and encouragement for our senior members.

@@ -1,0 +1,31 @@
+# One-click: copy every image and PDF the site uses from the old WordPress server
+# into this repo (wp-content/uploads/…), then point the site at the local copies.
+# Run it from GitHub → Actions → "Import WordPress media" → Run workflow,
+# BEFORE switching the domain's DNS away from WordPress.
+name: Import WordPress media
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download images and PDFs from mtcatlanta.org
+        run: bash scripts/import-wp-media.sh
+
+      - name: Serve media from this repo
+        run: sed -i 's|^media_base:.*|media_base: "/wp-content/uploads"|' _config.yml
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add wp-content _config.yml
+          git diff --cached --quiet && echo "Nothing new to commit" || git commit -m "Import media from WordPress"
+          git push

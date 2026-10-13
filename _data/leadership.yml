@@ -1,0 +1,26 @@
+vicar:
+  name: Rev. Jacob Thomas Anicad
+  title: Vicar & President
+  phone: "770-342-8071"
+  email: vicar@mtcatlanta.org
+  photo: 2026/03/mtc_vicar.jpg
+  bio: >-
+    Rev. Jacob Thomas Anicad took charge as Vicar on May 1, 2024. Achen serves our
+    parish together with Suba Kochamma and their children, Nethen and Noel.
+
+officers:
+  - name: Mrs. Ange Mariam Cherian
+    title: Vice President
+    phone: "(770) 718-6728"
+  - name: Ms. Liz Mathew
+    title: Secretary
+    phone: "(470) 680-8048"
+    email: secretary@mtcatlanta.org
+  - name: Mr. Santhosh K. Abraham
+    title: Trustee (Finance)
+    phone: "(770) 366-3965"
+    email: trustee@mtcatlanta.org
+  - name: Mr. Robin Thomas
+    title: Trustee (Accounts)
+    phone: "(586) 707-0419"
+    email: trustee@mtcatlanta.org
