@@ -14,7 +14,7 @@ if ((homeAnn || homeEvents || calendar || memberGallery) && configured()) {
     if (homeAnn || homeEvents) await home(sb).catch((e) => console.warn(e));
     if (calendar) await events(sb).catch((e) => { console.warn(e); $('[data-cal-status]', calendar).textContent = 'The calendar couldn’t load. Please try again later.'; });
     if (memberGallery) await gallery(sb).catch((e) => console.warn(e));
-  });
+  }).catch((e) => { console.warn('Live content unavailable', e); if (calendar) $('[data-cal-status]', calendar).textContent = 'The calendar couldn’t load. Please try again later.'; });
 } else if (calendar) {
   $('[data-cal-status]', calendar).textContent = 'The calendar isn’t available right now.';
 }

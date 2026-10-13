@@ -119,7 +119,8 @@ export async function getSettings(sb) {
   const defaults = {
     member_tabs: { overview: true, profile: true, family: true, giving: true, organizations: true, directory: true, documents: true, photos: true, account: true },
     photo_uploads: { enabled: true, max_mb: 10, note: '' },
-    home: { announcements: true, announcement_count: 3, events: true, event_count: 4 }
+    home: { announcements: true, announcement_count: 3, events: true, event_count: 4 },
+    chat: { enabled: true, greeting: '', hourly_limit: 30, daily_site_limit: 1500 }
   };
   try {
     const rows = ok(await sb.from('portal_settings').select('key, value'));

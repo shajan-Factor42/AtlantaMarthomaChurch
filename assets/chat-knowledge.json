@@ -1,0 +1,33 @@
+---
+layout: null
+permalink: /assets/chat-knowledge.json
+---
+{% assign c = site.data.church %}{% comment %}Links are site paths; the chat function adds the right domain.{% endcomment %}{% assign base = "" %}{
+  "church": {{ c.name | jsonify }},
+  "about": "A parish of the Malankara Mar Thoma Syrian Church in Atlanta. For more than forty years Mar Thoma families worshipped as the Atlanta Mar Thoma Church and the Hermon Mar Thoma Church; in December 2018 the two merged to form Mar Thoma Church, Atlanta. The Mar Thoma Church traces its roots to the ministry of St. Thomas in India and is a reformed Eastern church with an ancient liturgy and Scripture-centred faith.",
+  "email": {{ c.email | jsonify }},
+  "address": {% if c.address.line1 != "" %}{{ c.address.line1 | append: ", " | append: c.address.city | append: ", " | append: c.address.state | append: " " | append: c.address.zip | jsonify }}{% else %}null{% endif %},
+  "worship": {
+    "when": {{ c.worship.day | append: "s at " | append: c.worship.time | jsonify }},
+    "languages": "Malayalam on the 1st and 3rd Sundays of the month, English on the 2nd and 4th Sundays. On 5th Sundays, see the announcements.",
+    "livestream": {{ c.livestream_url | jsonify }},
+    "visitors": "Everyone is welcome; arrive a few minutes early and someone will help you find a seat. Children are welcome."
+  },
+  "giving": {{ c.giving | jsonify }},
+  "vicar": {{ site.data.leadership.vicar | jsonify }},
+  "officers": {{ site.data.leadership.officers | jsonify }},
+  "organizations": {{ site.data.organizations | jsonify }},
+  "newsletters": [{% for n in site.data.newsletters %}{"title": {{ n.title | jsonify }}, "url": {% if n.url %}{{ base | append: n.url | jsonify }}{% else %}{{ site.media_base | append: "/" | append: n.file | jsonify }}{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}],
+  "pages": {
+    "Home": {{ base | append: "/" | jsonify }},
+    "About": {{ base | append: "/about/" | jsonify }},
+    "Worship": {{ base | append: "/worship/" | jsonify }},
+    "Events calendar": {{ base | append: "/events/" | jsonify }},
+    "Organizations": {{ base | append: "/organizations/" | jsonify }},
+    "Gallery": {{ base | append: "/gallery/" | jsonify }},
+    "Newsletters": {{ base | append: "/newsletters/" | jsonify }},
+    "Contact": {{ base | append: "/contact-us/" | jsonify }},
+    "Member portal": {{ base | append: "/members/" | jsonify }}
+  },
+  "member_portal": "Registered parish members can sign in to the member portal to update family details, see their contribution statement, read members-only documents and share photos. Accounts are by invitation: ask the church secretary to be added."
+}

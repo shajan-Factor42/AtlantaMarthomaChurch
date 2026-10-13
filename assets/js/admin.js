@@ -414,6 +414,15 @@ const VIEWS = {
             <label>How many events<input type="number" name="home_ev_n" min="1" max="10" value="${esc(s.home.event_count)}"></label>
           </div>
         </section>
+        <section class="pcard">
+          <h2>Chat assistant</h2>
+          <p class="muted small">The “Ask us” chat on the public site and member portal. It answers from the website, events and home-page announcements.</p>
+          <label class="toggle"><input type="checkbox" name="chat_enabled" ${s.chat.enabled !== false ? 'checked' : ''}><span>Show the chat assistant</span></label>
+          <div class="form form--flat">
+            <label>Greeting<textarea name="chat_greeting" rows="3" maxlength="400">${esc(s.chat.greeting || '')}</textarea></label>
+            <label>Messages allowed per visitor per hour<input type="number" name="chat_hourly" min="5" max="200" value="${esc(s.chat.hourly_limit ?? 30)}"></label>
+          </div>
+        </section>
         <div class="settings__save"><button class="btn btn--primary" type="submit">Save settings</button><p class="form__msg" role="status"></p></div>
       </form>`;
   }
@@ -625,7 +634,8 @@ const BIND = {
       const rows = [
         { key: 'member_tabs', value: tabs },
         { key: 'photo_uploads', value: { enabled: f.photo_enabled.checked, max_mb: Math.min(15, Math.max(1, Number(f.photo_max.value) || 10)), note: f.photo_note.value.trim() } },
-        { key: 'home', value: { announcements: f.home_ann.checked, announcement_count: Number(f.home_ann_n.value) || 3, events: f.home_ev.checked, event_count: Number(f.home_ev_n.value) || 4 } }
+        { key: 'home', value: { announcements: f.home_ann.checked, announcement_count: Number(f.home_ann_n.value) || 3, events: f.home_ev.checked, event_count: Number(f.home_ev_n.value) || 4 } },
+        { key: 'chat', value: { ...(ctx.settings.chat || {}), enabled: f.chat_enabled.checked, greeting: f.chat_greeting.value.trim(), hourly_limit: Math.min(200, Math.max(5, Number(f.chat_hourly.value) || 30)) } }
       ].map((r) => ({ ...r, updated_at: new Date().toISOString() }));
       busy(f, true);
       try { ok(await sb.from('portal_settings').upsert(rows, { onConflict: 'key' })); msg(f, 'Saved. Members will see the changes the next time they open the portal.'); toast('Settings saved'); }

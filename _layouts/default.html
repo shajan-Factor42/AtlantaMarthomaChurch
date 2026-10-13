@@ -48,5 +48,7 @@
   <script src="{{ '/assets/js/config.js' | relative_url }}"></script>
   <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
   <script type="module" src="{{ '/assets/js/public.js' | relative_url }}"></script>
+  {% unless page.admin %}<script>window.MTCA_SITE = { contact: {{ '/contact-us/' | relative_url | jsonify }} };</script>
+  <script src="{{ '/assets/js/chat.js' | relative_url }}" defer></script>{% endunless %}
 </body>
 </html>
