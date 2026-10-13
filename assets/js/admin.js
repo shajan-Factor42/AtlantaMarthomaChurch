@@ -426,6 +426,8 @@ const VIEWS = {
     if (!isAdmin()) return '<section class="pcard"><p>Only an admin can change portal settings.</p></section>';
     const s = await getSettings(sb);
     ctx.settings = s;
+    const { data: refRow } = await sb.from('portal_settings').select('value').eq('key', 'mitra_refs').maybeSingle();
+    const refs = { marthoma: true, urls: [], ...(refRow?.value || {}) };
     return `
       <form id="settings-form" class="settings">
         <section class="pcard">
@@ -452,11 +454,20 @@ const VIEWS = {
         </section>
         <section class="pcard">
           <h2>Mitra AI chat</h2>
-          <p class="muted small">The “Ask Mitra AI” chat on the public site and member portal. It answers from the website, events and home-page announcements.</p>
+          <p class="muted small">The “Ask Mitra AI” chat on the public site and member portal. It answers from the website, events, home-page announcements and the reference sources below.</p>
           <label class="toggle"><input type="checkbox" name="chat_enabled" ${s.chat.enabled !== false ? 'checked' : ''}><span>Show Mitra AI</span></label>
           <div class="form form--flat">
             <label>Greeting<textarea name="chat_greeting" rows="3" maxlength="400">${esc(s.chat.greeting || '')}</textarea></label>
             <label>Messages allowed per visitor per hour<input type="number" name="chat_hourly" min="5" max="200" value="${esc(s.chat.hourly_limit ?? 30)}"></label>
+          </div>
+        </section>
+        <section class="pcard">
+          <div class="pcard__head"><h2>Mitra AI reference sources</h2><button class="btn btn--outline btn--small" type="button" id="refs-refresh">Refresh now</button></div>
+          <p class="muted small">Mitra AI keeps a copy of these sites and checks them every hour, so it can answer questions about the lectionary, Kalpanas and the wider Mar Thoma Church.</p>
+          <label class="toggle"><input type="checkbox" name="refs_marthoma" ${refs.marthoma !== false ? 'checked' : ''}><span>Use marthoma.in (lectionary, Kalpanas, Sabha pages and news)</span></label>
+          <div id="refs-status" class="refs-status muted small">Checking sources…</div>
+          <div class="form form--flat">
+            <label>Other pages Mitra AI may use <small class="muted">— one web address per line, up to 25</small><textarea name="refs_urls" rows="3" placeholder="https://example.org/page">${esc((refs.urls || []).join('\n'))}</textarea></label>
           </div>
         </section>
         <div class="settings__save"><button class="btn btn--primary" type="submit">Save settings</button><p class="form__msg" role="status"></p></div>
@@ -697,6 +708,20 @@ const BIND = {
   settings() {
     const f = $('#settings-form');
     if (!f) return;
+    const box = $('#refs-status');
+    const showStatus = (st) => { box.innerHTML = refsSummary(st); };
+    const call = async (body) => {
+      const { data, error } = await sb.functions.invoke('mitra-sources', { body });
+      if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch { /* keep */ } throw new Error(m); }
+      return data;
+    };
+    call({ action: 'status' }).then((d) => showStatus(d.status)).catch(() => { box.textContent = 'Couldn’t load the source status right now.'; });
+    $('#refs-refresh').onclick = async (e) => {
+      const b = e.currentTarget; b.disabled = true; b.textContent = 'Refreshing… (up to 2 min)';
+      try { const d = await call({ force: true }); showStatus(d.status); toast('Sources refreshed'); }
+      catch (err) { toast(friendly(err)); }
+      finally { b.disabled = false; b.textContent = 'Refresh now'; }
+    };
     f.onsubmit = async (e) => {
       e.preventDefault();
       const tabs = Object.fromEntries(MEMBER_TABS.map(([k]) => [k, k === 'overview' || k === 'account' ? true : f[`tab_${k}`].checked]));
@@ -704,16 +729,33 @@ const BIND = {
         { key: 'member_tabs', value: tabs },
         { key: 'photo_uploads', value: { enabled: f.photo_enabled.checked, max_mb: Math.min(15, Math.max(1, Number(f.photo_max.value) || 10)), note: f.photo_note.value.trim() } },
         { key: 'home', value: { announcements: f.home_ann.checked, announcement_count: Number(f.home_ann_n.value) || 3, events: f.home_ev.checked, event_count: Number(f.home_ev_n.value) || 4 } },
-        { key: 'chat', value: { ...(ctx.settings.chat || {}), enabled: f.chat_enabled.checked, greeting: f.chat_greeting.value.trim(), hourly_limit: Math.min(200, Math.max(5, Number(f.chat_hourly.value) || 30)) } }
+        { key: 'chat', value: { ...(ctx.settings.chat || {}), enabled: f.chat_enabled.checked, greeting: f.chat_greeting.value.trim(), hourly_limit: Math.min(200, Math.max(5, Number(f.chat_hourly.value) || 30)) } },
+        { key: 'mitra_refs', value: { marthoma: f.refs_marthoma.checked, urls: refUrls(f.refs_urls.value) } }
       ].map((r) => ({ ...r, updated_at: new Date().toISOString() }));
       busy(f, true);
-      try { ok(await sb.from('portal_settings').upsert(rows, { onConflict: 'key' })); msg(f, 'Saved. Members will see the changes the next time they open the portal.'); toast('Settings saved'); }
+      try { ok(await sb.from('portal_settings').upsert(rows, { onConflict: 'key' })); f.refs_urls.value = rows.find((r) => r.key === 'mitra_refs').value.urls.join('\n'); msg(f, 'Saved. Members will see the changes the next time they open the portal.'); toast('Settings saved'); }
       catch (err) { msg(f, friendly(err), true); }
       finally { busy(f, false); }
     };
   }
 };
 
+
+function refUrls(text) {
+  return [...new Set(text.split(/[\s,]+/).map((u) => u.trim()).filter((u) => /^https?:\/\/[^\s]+\.[^\s]+/i.test(u)))].slice(0, 25);
+}
+
+function refsSummary(st = {}) {
+  const ago = (iso) => { if (!iso) return 'never'; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : dateTime(iso); };
+  const l = st.lectionary || {}, c = st.circulars || {};
+  const cTotal = Object.values(c).reduce((a, b) => a + b, 0);
+  return `<ul class="refs-list">
+    <li><strong>Lectionary:</strong> ${l.entries ? `${l.entries} Sundays and feast days, ${date(l.from)} – ${date(l.to)}` : 'not loaded yet'}</li>
+    <li><strong>Kalpanas:</strong> ${cTotal ? `${cTotal} listed; full text read for ${c.ok || 0}${c.pending ? `, ${c.pending} still to read` : ''}${c.garbled || c.empty ? ` (${(c.garbled || 0) + (c.empty || 0)} are scans or old-font Malayalam, so Mitra AI shares the title and link)` : ''}` : 'not loaded yet'}</li>
+    <li><strong>Pages and news:</strong> ${st.pages || 0} pages, ${st.news || 0} news items</li>
+    <li><strong>Last checked:</strong> ${ago(st.last_run)}</li>
+  </ul>`;
+}
 
 /** Admin photo upload: published immediately, no review needed. */
 function bindAdminUpload() {

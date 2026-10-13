@@ -78,17 +78,26 @@ Want to test first? `supabase/sample-data.sql` creates one sample family — put
 Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also roles + settings). Only an admin can change roles.
 
 ### Mitra AI chat assistant ("Ask Mitra AI")
-- A Claude-powered chat bubble on the public site and member portal (not the admin console). It answers only from `assets/chat-knowledge.json` (built from `_data/`), plus live public events and home-page announcements.
+- A Claude-powered chat bubble on the public site and member portal (not the admin console). It answers only from `assets/chat-knowledge.json` (built from `_data/`), live public events and home-page announcements, and its copy of **marthoma.in** (below).
 - Backend: Supabase function `chat` (`supabase/functions/chat`) using Claude Haiku 5.5. It needs the secret **ANTHROPIC_API_KEY** (Supabase → Edge Functions → Secrets).
 - Limits: 30 messages per visitor per hour and 1,500 per day site-wide (change the hourly limit in Admin → Portal Settings). No conversation text is stored.
 - Turn it on/off or change the greeting in **Admin → Portal Settings → Mitra AI chat**.
 - At DNS cutover nothing changes: the function already accepts mtcatlanta.org.
+
+#### Reference sources (marthoma.in)
+- The `mitra-sources` function keeps a searchable copy of the official Mar Thoma Church site in the database:
+  - **Lectionary** (marthoma.in/prayer) — every Sunday and feast day with theme, Lessons, Epistle/Gospel, Evening readings and song numbers, plus the special-occasion readings. Mitra AI quotes these exactly.
+  - **Kalpanas** (marthoma.in/circulars) — the latest ~200 with number, title and PDF link. The PDF text is read where possible (English and Unicode Malayalam). Older scans and old-font Malayalam PDFs can't be read, so for those Mitra AI gives the title and link.
+  - **Sabha pages** (history, overview, bishops, dioceses, organisations, office bearers…) and the latest **news**.
+- Refresh: hourly (`mitra-sources-hourly`, at :07) plus a small job every 10 minutes that reads a few Kalpana PDFs (`mitra-sources-pdfs`). Both are `pg_cron` jobs calling the function with a private key stored in `app_secrets`.
+- **Admin → Portal Settings → Mitra AI reference sources** shows what's loaded, has a **Refresh now** button, an on/off switch for marthoma.in, and a box for up to 25 other web pages Mitra AI may use.
 
 ### Database files
 - `supabase/schema.sql` — core tables and privacy rules.
 - `supabase/002_admin_events_photos.sql` — events, photo submissions, portal settings, admin write access, file storage.
 - `supabase/functions/admin-users/` — server function behind "Portal access" (deployed as `admin-users`).
 - `supabase/003_chat.sql` + `supabase/functions/chat/` — chat assistant usage limits and function.
+- `supabase/004_mitra_references.sql` + `supabase/functions/mitra-sources/` — marthoma.in reference copy, search and the scheduled refresh jobs.
 
 ## 4. Switch the domain (≈15 min + DNS propagation)
 
