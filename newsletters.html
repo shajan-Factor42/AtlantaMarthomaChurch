@@ -15,7 +15,7 @@ description: Monthly newsletters from Mar Thoma Church, Atlanta.
   <div class="wrap narrow">
     <ul class="doc-list doc-list--large">
       {% for n in site.data.newsletters %}
-      <li><a href="{{ site.media_base }}/{{ n.file }}" target="_blank" rel="noopener"><span class="doc-icon">PDF</span><span><strong>Newsletter — {{ n.title }}</strong><small>Open PDF</small></span></a></li>
+      <li><a href="{% if n.url %}{{ n.url | relative_url }}{% else %}{{ site.media_base }}/{{ n.file }}{% endif %}" target="_blank" rel="noopener"><span class="doc-icon">PDF</span><span><strong>Newsletter — {{ n.title }}</strong><small>Open PDF</small></span></a></li>
       {% endfor %}
     </ul>
   </div>

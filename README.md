@@ -94,7 +94,7 @@ Old URLs `/gallery/`, `/newsletters/`, `/contact-us/` keep the same addresses on
 
 ## Everyday editing
 
-- **New newsletter:** add the PDF to `wp-content/uploads/YYYY/MM/`, then add an entry at the top of `_data/newsletters.yml`.
+- **New newsletter:** upload the PDF to `assets/newsletters/`, then add an entry at the top of `_data/newsletters.yml` with its `url` (see the September 2026 entry).
 - **New flyer:** add the image, update `_data/announcements.yml`.
 - **New photos:** add to the folder and list them in `_data/gallery.yml` (a new `- album:` block makes a new album).
 - **New vicar/committee:** edit `_data/leadership.yml`.

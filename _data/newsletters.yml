@@ -1,4 +1,10 @@
-# Newest first. "file" is relative to media_base.
+# Newest first.
+# New newsletters: put the PDF in assets/newsletters/ and add an entry with "url".
+# Older ones carried over from WordPress use "file" (relative to media_base).
+- title: September 2026
+  url: /assets/newsletters/September2026MTCANewsletter.pdf
+- title: June 2026
+  url: /assets/newsletters/June2026MTCANewsletter.pdf
 - title: March 2026
   file: 2026/03/March2026MTCANewsletter.pdf
 - title: February 2026
