@@ -272,3 +272,17 @@ body.is-admin { background: #f3f5f8; }
 .dl strong { color: #1f2a36; }
 .dl span { font-size: .88rem; color: var(--muted); }
 .admin .pcard h3 { font-family: var(--sans); font-size: 1rem; font-weight: 700; margin-top: 1.25rem; }
+
+/* Members: toolbar + directory switches */
+.members-toolbar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.members-toolbar .seg { margin: 0; }
+.members-toolbar input[type=search] { width: 300px; max-width: 100%; }
+.dir-table td { vertical-align: middle; }
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; background: #cdd5df; border-radius: 99px; transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.switch input:checked + span { background: #2f6b3a; }
+.switch input:checked + span::after { transform: translateX(18px); }
+.switch input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+.dir-table td:nth-child(1), .dir-table td:nth-child(2) { min-width: 150px; }

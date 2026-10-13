@@ -78,4 +78,4 @@ description: Member login for Mar Thoma Church, Atlanta.
 </div>
 
 <script>window.MTCA = { churchName: {{ site.data.church.name | jsonify }}, orgs: {{ site.data.organizations | map: 'name' | jsonify }} };</script>
-<script type="module" src="{{ '/assets/js/portal.js' | relative_url }}"></script>
+<script type="module" src="{{ '/assets/js/portal.js' | relative_url }}?v={{ site.time | date: '%s' }}"></script>

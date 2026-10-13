@@ -213,7 +213,7 @@ const ctx = { familyId: null, photoFilter: 'pending', familyQuery: '' };
 
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
-  if (b) { if (b.dataset.tab === 'members') ctx.familyId = null; show(b.dataset.tab); }
+  if (b) { if (b.dataset.tab === 'members') { ctx.familyId = null; if (ctx.membersMode === 'upload') { ctx.membersMode = 'families'; ctx.dirPlan = null; } } show(b.dataset.tab); }
 });
 
 async function show(tab) {
@@ -291,6 +291,9 @@ const VIEWS = {
   },
 
   async members() {
+    if (ctx.membersMode === 'upload' && !ctx.familyId) {
+      return `<button class="link-btn back" id="back-members">← Back to members</button>` + await uploadView();
+    }
     const fams = ok(await sb.from('families').select('*, members(*, organization_memberships(*))').order('family_name'));
     ctx.families = fams;
     if (ctx.familyId) {
@@ -298,17 +301,32 @@ const VIEWS = {
       if (f) return familyDetail(f);
       ctx.familyId = null;
     }
+    const people = fams.reduce((s, f) => s + f.members.length, 0);
+    const mode = ctx.membersMode === 'directory' ? 'directory' : 'families';
     return `
       <section class="pcard">
         <div class="pcard__head">
-          <div><h2>Families &amp; members</h2><p class="muted small">${fams.length} famil${fams.length === 1 ? 'y' : 'ies'} · ${fams.reduce((s, f) => s + f.members.length, 0)} members</p></div>
-          <div class="head-actions"><input type="search" id="fam-q" placeholder="Search name, email, number…" aria-label="Search families" value="${esc(ctx.familyQuery)}">
-          <button class="btn btn--primary btn--small" id="add-family">+ Add family</button></div>
+          <div><h2>Members</h2><p class="muted small">${fams.length} famil${fams.length === 1 ? 'y' : 'ies'} · ${people} member${people === 1 ? '' : 's'}</p></div>
+          <div class="head-actions">
+            <button class="btn btn--outline btn--small" id="bulk-upload">⇪ Bulk upload</button>
+            <button class="btn btn--primary btn--small" id="add-family">+ Add family</button>
+          </div>
         </div>
+        <div class="members-toolbar">
+          <div class="seg" role="tablist">
+            <button data-mode="families" aria-selected="${mode === 'families'}">Families <span class="muted">${fams.length}</span></button>
+            <button data-mode="directory" aria-selected="${mode === 'directory'}">Directory <span class="muted">${people}</span></button>
+          </div>
+          <input type="search" id="fam-q" placeholder="${mode === 'families' ? 'Search families, names, emails…' : 'Search names, emails, phones…'}" aria-label="Search" value="${esc(ctx.familyQuery)}">
+        </div>
+        ${mode === 'families' ? `
         <div class="table-wrap"><table class="table table--click">
           <thead><tr><th>Family</th><th>Member #</th><th>Prayer group</th><th>Members</th><th>Portal access</th><th>Status</th></tr></thead>
-          <tbody id="fam-rows"></tbody></table></div>
-        <p class="muted small">To bring in the full register at once, use Supabase → Table Editor → Import CSV (families first, then members).</p>
+          <tbody id="fam-rows"></tbody></table></div>` : `
+        <p class="muted small">Every person in the register. Edit anyone's details here; the <strong>In directory</strong> switch controls whether they appear in the members' parish directory.</p>
+        <div class="table-wrap"><table class="table table--compact dir-table">
+          <thead><tr><th>Name</th><th>Family</th><th>Email</th><th>Mobile</th><th>Prayer group</th><th>In directory</th><th></th></tr></thead>
+          <tbody id="dir-rows"></tbody></table></div>`}
       </section>`;
   },
 
@@ -541,6 +559,10 @@ const BIND = {
     $$('[data-go]', view).forEach((b) => (b.onclick = async () => { await show(b.dataset.go); if ('newFamily' in b.dataset) editFamily(null); }));
   },
   members() {
+    if (ctx.membersMode === 'upload' && !ctx.familyId) {
+      $('#back-members').onclick = () => { ctx.membersMode = 'families'; ctx.dirPlan = null; show('members'); };
+      return bindUpload();
+    }
     if (ctx.familyId) {
       const f = ctx.families.find((x) => x.id === ctx.familyId);
       $('#back').onclick = () => { ctx.familyId = null; show('members'); };
@@ -557,15 +579,43 @@ const BIND = {
       $$('[data-del-org]', view).forEach((b) => (b.onclick = async () => { ok(await sb.from('organization_memberships').delete().eq('id', b.dataset.delOrg)); toast('Removed'); show('members'); }));
       return;
     }
-    const draw = () => {
-      const t = ctx.familyQuery.toLowerCase();
-      const rows = ctx.families.filter((f) => !t || [f.family_name, f.member_number, f.prayer_group, ...f.members.flatMap((m) => [m.first_name, m.last_name, m.email])].join(' ').toLowerCase().includes(t));
-      $('#fam-rows').innerHTML = rows.map((f) => `<tr data-family="${f.id}" tabindex="0"><td><strong>${esc(f.family_name)}</strong></td><td>${val(f.member_number)}</td><td>${val(f.prayer_group)}</td><td>${f.members.length}</td><td>${f.members.filter((m) => m.auth_user_id).length}</td><td>${f.status === 'active' ? 'Active' : esc(f.status)}</td></tr>`).join('') || `<tr><td colspan="6" class="empty">${ctx.families.length ? 'No matches.' : 'No families yet — add the first one.'}</td></tr>`;
-      $$('[data-family]', view).forEach((r) => { const open = () => { ctx.familyId = r.dataset.family; show('members'); }; r.onclick = open; r.onkeydown = (e) => { if (e.key === 'Enter') open(); }; });
+    const mode = ctx.membersMode === 'directory' ? 'directory' : 'families';
+    $$('[data-mode]', view).forEach((b) => (b.onclick = () => { ctx.membersMode = b.dataset.mode; show('members'); }));
+    $('#add-family').onclick = () => editFamily(null);
+    $('#bulk-upload').onclick = () => { ctx.membersMode = 'upload'; ctx.dirPlan = null; show('members'); };
+    const openFamily = (id) => { ctx.familyId = id; show('members'); };
+    const t = () => ctx.familyQuery.toLowerCase();
+    const drawFamilies = () => {
+      const rows = ctx.families.filter((f) => !t() || [f.family_name, f.member_number, f.prayer_group, ...f.members.flatMap((m) => [m.first_name, m.last_name, m.email])].join(' ').toLowerCase().includes(t()));
+      $('#fam-rows').innerHTML = rows.map((f) => `<tr data-family="${f.id}" tabindex="0"><td><strong>${esc(f.family_name)}</strong></td><td>${val(f.member_number)}</td><td>${val(f.prayer_group)}</td><td>${f.members.length}</td><td>${f.members.filter((m) => m.auth_user_id).length}</td><td>${f.status === 'active' ? 'Active' : esc(f.status)}</td></tr>`).join('') || `<tr><td colspan="6" class="empty">${ctx.families.length ? 'No matches.' : 'No families yet — add one, or use Bulk upload.'}</td></tr>`;
+      $$('[data-family]', view).forEach((r) => { r.onclick = () => openFamily(r.dataset.family); r.onkeydown = (e) => { if (e.key === 'Enter') openFamily(r.dataset.family); }; });
     };
+    const everyone = () => ctx.families.flatMap((f) => f.members.map((m) => ({ ...m, _fam: f })))
+      .sort((a, b) => (a.last_name + a.first_name).localeCompare(b.last_name + b.first_name));
+    const drawDirectory = () => {
+      const rows = everyone().filter((m) => !t() || [m.first_name, m.last_name, m.email, m.mobile_phone, m._fam.family_name, m._fam.member_number, m._fam.prayer_group].join(' ').toLowerCase().includes(t()));
+      $('#dir-rows').innerHTML = rows.map((m) => `<tr>
+          <td><strong>${esc(m.first_name)} ${esc(m.last_name)}</strong>${m.role !== 'member' ? ` <span class="pill pill--${m.role}">${m.role === 'admin' ? 'Admin' : 'Officer'}</span>` : ''}<br><small class="muted">${esc(m.relationship || '')}</small></td>
+          <td><button class="link-btn" data-open-family="${m._fam.id}">${esc(m._fam.family_name)}</button></td>
+          <td>${val(m.email)}</td><td class="nowrap">${val(m.mobile_phone)}</td><td>${val(m._fam.prayer_group)}</td>
+          <td><label class="switch" title="Show in the members' directory"><input type="checkbox" data-optin="${m.id}" ${m.directory_opt_in ? 'checked' : ''}><span></span></label></td>
+          <td class="row-actions"><button class="btn btn--outline btn--small" data-edit-person="${m.id}">Edit</button></td></tr>`).join('')
+        || `<tr><td colspan="7" class="empty">${ctx.families.length ? 'No matches.' : 'No members yet — add a family, or use Bulk upload.'}</td></tr>`;
+      const byId = Object.fromEntries(everyone().map((m) => [m.id, m]));
+      $$('[data-open-family]', view).forEach((b) => (b.onclick = () => openFamily(b.dataset.openFamily)));
+      $$('[data-edit-person]', view).forEach((b) => (b.onclick = () => editMember(byId[b.dataset.editPerson], byId[b.dataset.editPerson].family_id)));
+      $$('[data-optin]', view).forEach((c) => (c.onchange = async () => {
+        try {
+          ok(await sb.from('members').update({ directory_opt_in: c.checked }).eq('id', c.dataset.optin));
+          byId[c.dataset.optin].directory_opt_in = c.checked;
+          ctx.families.forEach((f) => f.members.forEach((m) => { if (m.id === c.dataset.optin) m.directory_opt_in = c.checked; }));
+          toast(c.checked ? 'Listed in the directory' : 'Hidden from the directory');
+        } catch (e) { c.checked = !c.checked; toast(friendly(e), true); }
+      }));
+    };
+    const draw = mode === 'families' ? drawFamilies : drawDirectory;
     draw();
     $('#fam-q').oninput = (e) => { ctx.familyQuery = e.target.value; draw(); };
-    $('#add-family').onclick = () => editFamily(null);
   },
   giving() {
     const f = $('#contrib-form');
@@ -849,7 +899,7 @@ async function applyPlan(plan) {
   return { done: work - failed, failed, errs };
 }
 
-VIEWS.directory = async () => {
+async function uploadView() {
   if (ctx.dirPlan) return renderPlan(ctx.dirPlan);
   const [{ count: famCount }, { count: memCount }] = await Promise.all([
     sb.from('families').select('id', { count: 'exact', head: true }),
@@ -858,7 +908,7 @@ VIEWS.directory = async () => {
   return `
     <div class="grid-2">
       <section class="pcard">
-        <h2>Upload a directory file</h2>
+        <h2>Bulk upload</h2>
         <p class="muted small">Upload a spreadsheet (Excel or CSV) with one row per person. You’ll see exactly what will change before anything is saved.</p>
         <form id="dir-form" class="form form--flat">
           <label class="drop" id="dir-drop">
@@ -888,11 +938,11 @@ VIEWS.directory = async () => {
         <p class="small muted">Required: First name, Last name and Family name (or an existing Member number). Dates as YYYY-MM-DD or MM/DD/YYYY; Yes/No for Baptized, Confirmed and In directory.</p>
       </section>
     </div>`;
-};
+}
 
-BIND.directory = () => {
+function bindUpload() {
   if (ctx.dirPlan) {
-    $('#dir-cancel').onclick = () => { ctx.dirPlan = null; show('directory'); };
+    $('#dir-cancel').onclick = () => { ctx.dirPlan = null; show('members'); };
     const apply = $('#dir-apply');
     if (apply) apply.onclick = () => {
       const s = planSummary(ctx.dirPlan);
@@ -901,9 +951,9 @@ BIND.directory = () => {
         const res = await applyPlan(ctx.dirPlan);
         ctx.dirPlan = null;
         if (res.failed) {
-          view.innerHTML = `<section class="pcard"><h2>Import finished with problems</h2><p>${res.done} change${res.done === 1 ? '' : 's'} saved; ${res.failed} couldn’t be saved:</p><ul class="small">${res.errs.map((e) => `<li>${esc(e)}</li>`).join('')}</ul><button class="btn btn--primary btn--small" id="dir-again">Back to Directory Upload</button></section>`;
-          $('#dir-again').onclick = () => show('directory');
-        } else { toast(`Imported ${res.done} change${res.done === 1 ? '' : 's'}`); ctx.familyId = null; await show('members'); }
+          view.innerHTML = `<section class="pcard"><h2>Import finished with problems</h2><p>${res.done} change${res.done === 1 ? '' : 's'} saved; ${res.failed} couldn’t be saved:</p><ul class="small">${res.errs.map((e) => `<li>${esc(e)}</li>`).join('')}</ul><button class="btn btn--primary btn--small" id="dir-again">Back to Bulk upload</button></section>`;
+          $('#dir-again').onclick = () => show('members');
+        } else { toast(`Imported ${res.done} change${res.done === 1 ? '' : 's'}`); ctx.familyId = null; ctx.membersMode = 'directory'; await show('members'); }
       }, 'Import');
     };
     return;
@@ -919,7 +969,7 @@ BIND.directory = () => {
       if (rows.length > 3001) throw new Error('Please upload 3,000 rows or fewer at a time.');
       ctx.dirFileName = file.name;
       ctx.dirPlan = await planImport(rows);
-      await show('directory');
+      await show('members');
     } catch (e) { msg(form, friendly(e), true); input.value = ''; }
   };
   input.onchange = () => handle(input.files[0]);
@@ -943,7 +993,7 @@ BIND.directory = () => {
     });
     download(`mtca-directory-${todayIso()}.csv`, '﻿' + toCsv(rows));
   };
-};
+}
 
 /* ---------------------------------------------------------------------
    Routing

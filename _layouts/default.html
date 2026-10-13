@@ -1,4 +1,4 @@
-<!doctype html>
+{% assign v = site.time | date: "%s" %}<!doctype html>
 <html lang="{{ site.lang }}">
 <head>
   <meta charset="utf-8">
@@ -13,11 +13,12 @@
   <meta property="og:url" content="{{ page.url | absolute_url }}">
   <meta property="og:type" content="website">
   <link rel="icon" href="{{ site.media_base }}/2026/03/Logo-MTCA-1.png">
+  <script type="importmap">{ "imports": { "{{ '/assets/js/common.js' | relative_url }}": "{{ '/assets/js/common.js' | relative_url }}?v={{ v }}" } }</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
-  {% if page.portal %}<link rel="stylesheet" href="{{ '/assets/css/portal.css' | relative_url }}">{% endif %}
+  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}?v={{ v }}">
+  {% if page.portal %}<link rel="stylesheet" href="{{ '/assets/css/portal.css' | relative_url }}?v={{ v }}">{% endif %}
   {% if page.url == "/" %}
   <script type="application/ld+json">
   {
@@ -45,10 +46,10 @@
     <img alt="">
     <button class="lightbox__nav lightbox__next" aria-label="Next">&#8250;</button>
   </div>
-  <script src="{{ '/assets/js/config.js' | relative_url }}"></script>
-  <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
-  <script type="module" src="{{ '/assets/js/public.js' | relative_url }}"></script>
+  <script src="{{ '/assets/js/config.js' | relative_url }}?v={{ v }}"></script>
+  <script src="{{ '/assets/js/site.js' | relative_url }}?v={{ v }}"></script>
+  <script type="module" src="{{ '/assets/js/public.js' | relative_url }}?v={{ v }}"></script>
   {% unless page.admin %}<script>window.MTCA_SITE = { contact: {{ '/contact-us/' | relative_url | jsonify }} };</script>
-  <script src="{{ '/assets/js/chat.js' | relative_url }}" defer></script>{% endunless %}
+  <script src="{{ '/assets/js/chat.js' | relative_url }}?v={{ v }}" defer></script>{% endunless %}
 </body>
 </html>
