@@ -208,3 +208,5 @@
 .toggle input { width: 18px; height: 18px; accent-color: var(--primary); }
 .toggle:has(input:disabled) { opacity: .6; cursor: default; }
 .settings__save { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--white); padding: 1rem 0; border-top: 1px solid var(--line); }
+
+.show-pw { margin-top: -.4rem; font-size: .88rem !important; color: var(--muted); }

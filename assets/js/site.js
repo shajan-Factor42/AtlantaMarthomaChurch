@@ -10,6 +10,12 @@
     });
   }
 
+  // "Show password" toggles on sign-in forms
+  document.addEventListener('change', (e) => {
+    if (!e.target.matches('[data-show-pw]')) return;
+    e.target.closest('form').querySelectorAll('input[name=password], input[name=confirm]').forEach((i) => { i.type = e.target.checked ? 'text' : 'password'; });
+  });
+
   // Sunday language: 1st & 3rd Malayalam, 2nd & 4th English
   const LANG = { 1: 'Malayalam', 2: 'English', 3: 'Malayalam', 4: 'English', 5: 'Special' }; // 5th Sundays — adjust if the parish has a set pattern
   const nextSunday = (from) => {

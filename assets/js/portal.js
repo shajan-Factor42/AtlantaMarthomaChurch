@@ -57,7 +57,7 @@ let recovering = /type=recovery/.test(location.hash);
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = loginForm.email.value.trim();
-  const password = loginForm.password.value;
+  const password = loginForm.password.value.trim();
   if (!email) return msg(loginForm, 'Please enter your email.', true);
   if (!password) return msg(loginForm, 'Enter your password, or use “Email me a sign-in link”.', true);
   busy(loginForm, true); msg(loginForm, 'Signing in…');

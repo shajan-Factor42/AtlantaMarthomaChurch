@@ -27,7 +27,7 @@ const loginForm = $('#login-form');
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = loginForm.email.value.trim(), password = loginForm.password.value;
+  const email = loginForm.email.value.trim(), password = loginForm.password.value.trim();
   if (!email || !password) return msg(loginForm, 'Enter your email and password.', true);
   busy(loginForm, true); msg(loginForm, 'Signing in…');
   try { ok(await sb.auth.signInWithPassword({ email, password })); msg(loginForm, ''); await route(); }
