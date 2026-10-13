@@ -286,3 +286,4 @@ body.is-admin { background: #f3f5f8; }
 .switch input:checked + span::after { transform: translateX(18px); }
 .switch input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
 .dir-table td:nth-child(1), .dir-table td:nth-child(2) { min-width: 150px; }
+.admin-upload { border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem; margin-bottom: 1.25rem; background: #f7f9fb; }

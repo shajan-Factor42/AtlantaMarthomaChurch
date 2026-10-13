@@ -1,7 +1,7 @@
 // Mar Thoma Church, Atlanta — parish admin
 import {
   getClient, ok, $, $$, esc, val, money, date, dateTime, todayIso, friendly, msg, busy, toast,
-  dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal
+  dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal, prepareImage
 } from './common.js';
 
 const ORGS = (window.MTCA && window.MTCA.orgs) || [];
@@ -383,8 +383,26 @@ const VIEWS = {
     rows.forEach((r) => counts[r.status]++);
     return `
       <section class="pcard">
-        <div class="pcard__head"><div><h2>Member photos</h2><p class="muted small">Approved photos appear on the public Gallery page under “Shared by our members”.</p></div>
-          ${f === 'pending' && list.length > 1 ? '<button class="btn btn--primary btn--small" id="approve-all">Approve all</button>' : ''}</div>
+        <div class="pcard__head"><div><h2>Photos</h2><p class="muted small">Approved photos appear on the public Gallery page. Photos you upload here are published straight away.</p></div>
+          <div class="head-actions">
+            ${f === 'pending' && list.length > 1 ? '<button class="btn btn--outline btn--small" id="approve-all">Approve all</button>' : ''}
+            <button class="btn btn--primary btn--small" id="upload-photos">⇪ Upload photos</button>
+          </div></div>
+        <form id="admin-photo-form" class="form form--flat admin-upload" hidden>
+          <label class="drop" id="admin-drop">
+            <input type="file" name="files" accept="image/jpeg,image/png,image/webp,image/gif" multiple required>
+            <span class="drop__text"><strong>Choose photos</strong> or drag them here<br><small>JPEG, PNG or WebP · up to 50 at a time · large photos are resized automatically</small></span>
+          </label>
+          <div id="admin-previews" class="thumbs"></div>
+          <div class="row-2">
+            <label>Event or occasion <input name="event_name" placeholder="e.g. Harvest Festival 2026" maxlength="120"></label>
+            <label>Caption (optional) <input name="caption" maxlength="300"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="show_in_gallery" checked> Show on the public Gallery page</label>
+          <div class="btn-row"><button class="btn btn--primary" type="submit">Upload and publish</button><button class="btn btn--outline" type="button" id="cancel-upload">Cancel</button></div>
+          <div class="progress" hidden><i></i></div>
+          <p class="form__msg" role="status"></p>
+        </form>
         <div class="seg">${[['pending', 'Waiting for review'], ['approved', 'Approved'], ['rejected', 'Not approved']].map(([k, l]) => `<button data-pf="${k}" aria-selected="${k === f}">${l} <span class="muted">${counts[k]}</span></button>`).join('')}</div>
         ${list.length ? `<div class="photo-grid photo-grid--admin" data-lightbox-group>${list.map((p) => `
           <figure class="photo" data-path="${esc(p.storage_path)}">
@@ -392,7 +410,7 @@ const VIEWS = {
             <figcaption>
               <strong>${esc(p.event_name || 'Untitled')}</strong>
               ${p.caption ? `<small>${esc(p.caption)}</small>` : ''}
-              <small class="muted">${esc(p.member ? p.member.first_name + ' ' + p.member.last_name : '')} · ${date(p.created_at.slice(0, 10))}</small>
+              <small class="muted">${p.reviewed_by && p.reviewed_by === p.member_id && p.status === 'approved' ? 'Uploaded by ' : ''}${esc(p.member ? p.member.first_name + ' ' + p.member.last_name : '')} · ${date(p.created_at.slice(0, 10))}</small>
               <div class="photo__actions">
                 ${p.status !== 'approved' ? `<button class="btn btn--primary btn--small" data-approve="${p.id}">Approve</button>` : ''}
                 ${p.status === 'pending' ? `<button class="btn btn--outline btn--small" data-reject="${p.id}">Decline</button>` : ''}
@@ -654,6 +672,7 @@ const BIND = {
   documents: () => documents.bind(),
   async photos() {
     $$('[data-pf]', view).forEach((b) => (b.onclick = () => { ctx.photoFilter = b.dataset.pf; show('photos'); }));
+    bindAdminUpload();
     const figs = $$('[data-path]', view);
     const urls = await signedThumbs(figs.map((f) => f.dataset.path)).catch(() => ({}));
     figs.forEach((f) => { const u = urls[f.dataset.path]; if (u) { const a = $('.photo__img', f); a.style.backgroundImage = `url("${u}")`; a.href = u; } });
@@ -694,6 +713,52 @@ const BIND = {
     };
   }
 };
+
+
+/** Admin photo upload: published immediately, no review needed. */
+function bindAdminUpload() {
+  const form = $('#admin-photo-form');
+  const input = form.files, drop = $('#admin-drop'), previews = $('#admin-previews');
+  $('#upload-photos').onclick = () => { form.hidden = !form.hidden; if (!form.hidden) form.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+  $('#cancel-upload').onclick = () => { form.reset(); previews.innerHTML = ''; form.hidden = true; };
+  const renderPreviews = () => { previews.innerHTML = [...input.files].slice(0, 50).map((f) => `<span class="thumb" style="background-image:url('${URL.createObjectURL(f)}')" title="${esc(f.name)}"></span>`).join(''); };
+  input.onchange = renderPreviews;
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('is-over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove('is-over')));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; renderPreviews(); } });
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const files = [...input.files].filter((f) => /^image\//.test(f.type));
+    if (!files.length) return msg(form, 'Choose at least one photo.', true);
+    if (files.length > 50) return msg(form, 'Please upload up to 50 photos at a time.', true);
+    busy(form, true);
+    const bar = $('.progress', form); bar.hidden = false;
+    let done = 0, failed = 0;
+    const now = new Date().toISOString();
+    for (const original of files) {
+      msg(form, `Uploading ${done + failed + 1} of ${files.length}…`);
+      try {
+        const file = await prepareImage(original);
+        if (file.size > 15 * 1048576) throw new Error(`${original.name} is too large (over 15 MB).`);
+        const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+        const path = `${me.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        ok(await sb.storage.from('member-photos').upload(path, file, { contentType: file.type, upsert: false }));
+        const ins = await sb.from('photo_submissions').insert({
+          member_id: me.id, storage_path: path, status: 'approved', reviewed_by: me.id, reviewed_at: now,
+          event_name: form.event_name.value.trim() || null, caption: form.caption.value.trim() || null,
+          show_in_gallery: form.show_in_gallery.checked
+        });
+        if (ins.error) { await sb.storage.from('member-photos').remove([path]); throw ins.error; }
+        done++;
+      } catch (err) { failed++; console.warn(err); }
+      $('i', bar).style.width = `${Math.round(((done + failed) / files.length) * 100)}%`;
+    }
+    busy(form, false);
+    if (done) { toast(`Published ${done} photo${done > 1 ? 's' : ''}`); ctx.photoFilter = 'approved'; await show('photos'); }
+    if (failed) toast(`${failed} photo${failed > 1 ? 's' : ''} couldn’t be uploaded`, true);
+  };
+}
 
 /* ---------------------------------------------------------------------
    Directory upload / update (bulk import from CSV or Excel)
