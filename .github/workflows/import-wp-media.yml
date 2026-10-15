@@ -20,7 +20,8 @@ jobs:
         run: bash scripts/import-wp-media.sh
 
       - name: Serve media from this repo
-        run: sed -i 's|^media_base:.*|media_base: "/wp-content/uploads"|' _config.yml
+        run: |
+          sed -i 's|^media_base:.*|media_base: "/wp-content/uploads"|' _config.yml
 
       - name: Commit
         run: |
