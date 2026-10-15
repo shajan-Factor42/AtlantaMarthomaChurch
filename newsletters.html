@@ -12,10 +12,16 @@ description: Monthly newsletters from Mar Thoma Church, Atlanta.
 </section>
 
 <section class="section">
-  <div class="wrap narrow">
-    <ul class="doc-list doc-list--large">
+  <div class="wrap">
+    <ul class="nl-grid">
       {% for n in site.data.newsletters %}
-      <li><a href="{% if n.url %}{{ n.url | relative_url }}{% else %}{{ site.media_base }}/{{ n.file }}{% endif %}" target="_blank" rel="noopener"><span class="doc-icon">PDF</span><span><strong>Newsletter — {{ n.title }}</strong><small>Open PDF</small></span></a></li>
+      {% if n.url %}{% assign href = n.url | relative_url %}{% else %}{% assign href = site.media_base | append: '/' | append: n.file %}{% endif %}
+      <li>
+        <a class="nl-card" href="{{ href }}" target="_blank" rel="noopener">
+          <span class="nl-card__cover">{% if n.cover %}<img src="{{ n.cover | relative_url }}" alt="Front page of the {{ n.title }} newsletter" loading="lazy">{% else %}<span class="nl-card__blank"><small>MTCA Newsletter</small><strong>{{ n.title }}</strong></span>{% endif %}</span>
+          <span class="nl-card__title">{{ n.title }}<small>Open PDF</small></span>
+        </a>
+      </li>
       {% endfor %}
     </ul>
   </div>

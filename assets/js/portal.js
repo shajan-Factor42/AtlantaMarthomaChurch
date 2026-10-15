@@ -1,7 +1,7 @@
 // Mar Thoma Church, Atlanta — member portal
 import {
   getClient, ok, $, $$, esc, val, money, date, dateTime, todayIso, friendly, msg, busy, toast,
-  dialog, confirmDialog, getSettings, prepareImage, download, icsFor
+  dialog, confirmDialog, getSettings, prepareImage, download, icsFor, mediaUrl, linkify
 } from './common.js';
 
 const PORTAL_URL = location.origin + location.pathname;
@@ -29,7 +29,7 @@ const api = {
   pledges: async () => ok(await sb.from('pledges').select('*').eq('family_id', me.family_id)),
   orgMemberships: async () => ok(await sb.from('organization_memberships').select('*')),
   announcements: async () => ok(await sb.from('member_announcements').select('*').lte('published_on', todayIso())
-    .order('pinned', { ascending: false }).order('published_on', { ascending: false }).limit(20)),
+    .order('pinned', { ascending: false }).order('published_on', { ascending: false }).limit(40)).filter((a) => !a.expires_on || a.expires_on >= todayIso()).slice(0, 20),
   events: async () => ok(await sb.from('events').select('*').gte('starts_at', new Date(Date.now() - 6 * 3600e3).toISOString()).order('starts_at').limit(5)),
   documents: async () => ok(await sb.from('member_documents').select('*').order('published_on', { ascending: false })),
   directory: async () => ok(await sb.rpc('member_directory')),
@@ -154,7 +154,7 @@ const VIEWS = {
       <div class="grid-2">
         <section class="pcard">
           <h2>Announcements</h2>
-          ${anns.length ? anns.map((a) => `<article class="ann">${a.pinned ? '<span class="badge">Pinned</span>' : ''}<p class="ann__date">${date(a.published_on)}</p><h3>${esc(a.title)}</h3><p>${esc(a.body)}</p>${a.link_url ? `<p><a href="${esc(a.link_url)}" target="_blank" rel="noopener">More details →</a></p>` : ''}</article>`).join('') : '<p class="muted">No announcements right now.</p>'}
+          ${anns.length ? anns.map((a) => `<article class="ann${a.flyer_url ? ' ann--flyer' : ''}">${a.flyer_url ? `<a class="ann__flyer" href="${esc(mediaUrl(a.flyer_url))}" target="_blank" rel="noopener"><img src="${esc(mediaUrl(a.flyer_url))}" alt="Flyer: ${esc(a.title)}" loading="lazy"></a>` : ''}${a.pinned ? '<span class="badge">Pinned</span>' : ''}<p class="ann__date">${date(a.published_on)}</p><h3>${esc(a.title)}</h3><p>${linkify(a.body)}</p>${a.link_url ? `<p><a href="${esc(a.link_url)}" target="_blank" rel="noopener">More details →</a></p>` : ''}</article>`).join('') : '<p class="muted">No announcements right now.</p>'}
         </section>
         <div class="stack">
           <section class="pcard">

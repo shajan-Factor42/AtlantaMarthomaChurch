@@ -174,3 +174,11 @@ export async function prepareImage(file, maxSide = 2400, quality = 0.85) {
     return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
   } catch (e) { return file; }
 }
+
+/** Site root (works on github.io/AtlantaMarthomaChurch and on mtcatlanta.org). */
+const SITE_ROOT = new URL('../../', import.meta.url);
+/** Flyer / cover images: full URLs (uploaded to storage) or paths inside the site (e.g. assets/flyers/x.jpg). */
+export const mediaUrl = (u) => !u ? '' : /^https?:\/\//i.test(u) ? u : new URL(String(u).replace(/^\/+/, ''), SITE_ROOT).href;
+
+/** Escape text, then turn bare web addresses into links. */
+export const linkify = (text) => esc(text).replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`);

@@ -1,10 +1,14 @@
 # Newest first.
 # New newsletters: put the PDF in assets/newsletters/ and add an entry with "url".
 # Older ones carried over from WordPress use "file" (relative to media_base).
+# "cover" is the front-page image. It is created automatically (GitHub Action
+# "Newsletter covers") within a few minutes of adding a newsletter; you can also set it by hand.
 - title: September 2026
   url: /assets/newsletters/September2026MTCANewsletter.pdf
+  cover: /assets/newsletters/covers/September2026.jpg
 - title: June 2026
   url: /assets/newsletters/June2026MTCANewsletter.pdf
+  cover: /assets/newsletters/covers/June2026.jpg
 - title: March 2026
   file: 2026/03/March2026MTCANewsletter.pdf
 - title: February 2026

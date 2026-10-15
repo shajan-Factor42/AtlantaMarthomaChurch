@@ -1,7 +1,7 @@
 // Mar Thoma Church, Atlanta — parish admin
 import {
   getClient, ok, $, $$, esc, val, money, date, dateTime, todayIso, friendly, msg, busy, toast,
-  dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal, prepareImage
+  dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal, prepareImage, mediaUrl
 } from './common.js';
 
 const ORGS = (window.MTCA && window.MTCA.orgs) || [];
@@ -9,7 +9,7 @@ const PORTAL_URL = new URL('../members/', location.href).href;
 const RELATIONSHIPS = ['Head', 'Spouse', 'Son', 'Daughter', 'Father', 'Mother', 'Grandparent', 'Sibling', 'Other'];
 const GIVING_CATEGORIES = ['Subscription', 'Sunday Offering', 'Thanksgiving', 'Mission', 'Building Fund', 'Harvest Festival', 'Other'];
 const METHODS = ['Check', 'Zelle', 'Cash', 'Online'];
-const EVENT_CATEGORIES = ['Worship', 'Parish', 'Youth', 'Sunday School', 'Sevika Sangham', 'Fellowship', 'Special'];
+const EVENT_CATEGORIES = ['Worship', 'Parish', 'Youth', 'Sunday School', 'Sevika Sangham', 'Fellowship', 'Community', 'Diocese', 'Special'];
 const DOC_CATEGORIES = ['General', 'Minutes', 'Annual Report', 'Forms', 'Budget', 'Policies'];
 const MEMBER_TABS = [['overview', 'Overview'], ['profile', 'My Profile'], ['family', 'Family'], ['giving', 'Giving'], ['organizations', 'Organizations'], ['directory', 'Directory'], ['documents', 'Documents'], ['photos', 'Share Photos'], ['account', 'Account']];
 
@@ -49,6 +49,10 @@ function input(f, v) {
     case 'checkbox': return `<label class="check"><input type="checkbox" ${name} ${(v ?? f.default) ? 'checked' : ''} ${dis}> ${f.label}</label>`;
     case 'textarea': return `<label>${f.label}<textarea ${name} rows="${f.rows || 5}" ${req} ${dis}>${esc(value)}</textarea>${hint}</label>`;
     case 'select': return `<label>${f.label}<select ${name} ${req} ${dis}>${f.blank ? `<option value="">${f.blank}</option>` : ''}${f.options.map((o) => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}" ${String(ov) === String(value) ? 'selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>${hint}</label>`;
+    case 'flyer': return `<div class="flyer-field"><span class="flyer-field__label">${f.label}</span>
+      ${v ? `<div class="flyer-field__current"><img src="${esc(mediaUrl(v))}" alt="Current flyer"><label class="check"><input type="checkbox" name="${f.name}_remove"> Remove this flyer</label></div>` : ''}
+      <input type="file" name="${f.name}_file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <small class="muted">${v ? 'Choose a new image to replace it. ' : ''}JPG or PNG, up to 10 MB. Shown with the ${f.where || 'post'}.</small></div>`;
     case 'datetime': return `<label>${f.label}<input type="datetime-local" ${name} value="${esc(isoToLocal(v))}" ${req} ${dis}>${hint}</label>`;
     default: return `<label>${f.label}<input type="${f.type || 'text'}" ${name} value="${esc(value)}" ${f.step ? `step="${f.step}"` : ''} ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.maxlength ? `maxlength="${f.maxlength}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${req} ${dis}>${hint}</label>`;
   }
@@ -58,7 +62,7 @@ const flatFields = (fields) => fields.flatMap((f) => f.row || [f]);
 function readValues(fields, values) {
   const out = {};
   flatFields(fields).forEach((f) => {
-    if (f.disabled || f.virtual) return;
+    if (f.disabled || f.virtual || f.type === 'flyer') return;
     let v = values[f.name];
     if (f.type === 'checkbox') v = !!v;
     else if (f.type === 'datetime') v = v ? localToIso(v) : null;
@@ -68,6 +72,27 @@ function readValues(fields, values) {
   });
   return out;
 }
+
+/** Upload / replace / remove the flyer image for an event or announcement. */
+async function saveFlyer(d, form, row) {
+  const file = form.flyer_url_file && form.flyer_url_file.files[0];
+  const remove = form.flyer_url_remove && form.flyer_url_remove.checked;
+  const old = row && row.flyer_url;
+  const ownPath = (u) => { const m = u && u.match(/\/storage\/v1\/object\/public\/flyers\/(.+)$/); return m ? decodeURIComponent(m[1]) : null; };
+  if (file) {
+    if (!/^image\//.test(file.type)) throw new Error('The flyer must be an image (JPG or PNG).');
+    const img = await prepareImage(file, 2000, 0.85);
+    if (img.size > 10 * 1048576) throw new Error('The flyer image must be 10 MB or smaller.');
+    const path = `${new Date().getFullYear()}/${Date.now()}-${img.name.replace(/[^\w.\-]+/g, '-').toLowerCase()}`;
+    ok(await sb.storage.from('flyers').upload(path, img, { contentType: img.type || 'image/jpeg', cacheControl: '31536000' }));
+    d.flyer_url = sb.storage.from('flyers').getPublicUrl(path).data.publicUrl;
+  } else if (remove) {
+    d.flyer_url = null;
+  }
+  if ((file || remove) && ownPath(old)) await sb.storage.from('flyers').remove([ownPath(old)]).catch(() => {});
+  return d;
+}
+const flyerThumb = (r) => r.flyer_url ? `<img class="flyer-thumb" src="${esc(mediaUrl(r.flyer_url))}" alt="" loading="lazy">` : '';
 
 /* ---------------------------------------------------------------------
    Generic list editor (announcements, events, documents)
@@ -136,10 +161,13 @@ const announcements = crud({
     { name: 'audience', label: 'Show on', type: 'select', options: Object.entries(AUDIENCE), default: 'both' },
     { row: [{ name: 'published_on', label: 'Show from', type: 'date', default: todayIso(), required: true }, { name: 'expires_on', label: 'Hide after (optional)', type: 'date' }] },
     { name: 'link_url', label: 'Link for “More details” (optional)', type: 'url', placeholder: 'https://' },
+    { name: 'flyer_url', label: 'Flyer (optional)', type: 'flyer', where: 'announcement' },
     { name: 'pinned', label: 'Pin to the top', type: 'checkbox' }
   ],
+  beforeSave: saveFlyer,
+  onDelete: (row) => saveFlyer({}, { flyer_url_remove: { checked: true } }, row),
   columns: [
-    { label: 'Title', render: (r) => `<strong>${esc(r.title)}</strong>${r.pinned ? ' <span class="badge">Pinned</span>' : ''}<br><small class="muted clamp">${esc(r.body)}</small>` },
+    { label: 'Title', render: (r) => `${flyerThumb(r)}<strong>${esc(r.title)}</strong>${r.pinned ? ' <span class="badge">Pinned</span>' : ''}<br><small class="muted clamp">${esc(r.body)}</small>` },
     { label: 'Shows on', render: (r) => `<span class="pill pill--${r.audience}">${AUDIENCE[r.audience] || r.audience}</span>` },
     { label: 'From', render: (r) => date(r.published_on) },
     { label: 'Until', render: (r) => r.expires_on ? date(r.expires_on) : '<span class="muted">—</span>' }
@@ -157,14 +185,17 @@ const events = crud({
     { row: [{ name: 'starts_at', label: 'Starts', type: 'datetime', required: true }, { name: 'ends_at', label: 'Ends (optional)', type: 'datetime' }] },
     { name: 'all_day', label: 'All-day event', type: 'checkbox' },
     { row: [{ name: 'location', label: 'Location', placeholder: 'Church hall' }, { name: 'category', label: 'Category', type: 'select', options: EVENT_CATEGORIES, default: 'Parish' }] },
-    { name: 'description', label: 'Details', type: 'textarea', rows: 4 },
+    { name: 'description', label: 'Details', type: 'textarea', rows: 4, hint: 'Web addresses you type here become clickable links.' },
+    { name: 'link_url', label: 'Registration or details link (optional)', type: 'url', placeholder: 'https://' },
+    { name: 'flyer_url', label: 'Flyer (optional)', type: 'flyer', where: 'event on the calendar' },
     { name: 'published', label: 'Published (visible on the calendar)', type: 'checkbox', default: true },
     { name: 'members_only', label: 'Members only (hide from the public calendar)', type: 'checkbox' }
   ],
-  beforeSave: (d) => { if (d.ends_at && new Date(d.ends_at) < new Date(d.starts_at)) throw new Error('The end time is before the start time.'); return d; },
+  beforeSave: (d, form, row) => { if (d.ends_at && new Date(d.ends_at) < new Date(d.starts_at)) throw new Error('The end time is before the start time.'); return saveFlyer(d, form, row); },
+  onDelete: (row) => saveFlyer({}, { flyer_url_remove: { checked: true } }, row),
   columns: [
     { label: 'When', render: (r) => `<span class="nowrap">${esc(dateTime(r.starts_at, r.all_day))}</span>` },
-    { label: 'Event', render: (r) => `<strong>${esc(r.title)}</strong>${r.location ? `<br><small class="muted">${esc(r.location)}</small>` : ''}` },
+    { label: 'Event', render: (r) => `${flyerThumb(r)}<strong>${esc(r.title)}</strong>${r.location ? `<br><small class="muted">${esc(r.location)}</small>` : ''}` },
     { label: 'Category', render: (r) => esc(r.category) },
     { label: 'Visibility', render: (r) => !r.published ? '<span class="pill">Draft</span>' : r.members_only ? '<span class="pill pill--members">Members only</span>' : '<span class="pill pill--both">Public</span>' }
   ]

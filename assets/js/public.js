@@ -1,6 +1,6 @@
 // Public pages: home announcements & events, Events calendar, member photo album.
 // Each block only loads data when its element is on the page.
-import { getClient, configured, getSettings, ok, $, $$, esc, date, dateTime, timeOnly, dayKey, todayIso, TZ, download, icsFor } from './common.js';
+import { getClient, configured, getSettings, ok, $, $$, esc, date, dateTime, timeOnly, dayKey, todayIso, TZ, download, icsFor, mediaUrl, linkify } from './common.js';
 
 const homeAnn = $('[data-home-announcements]');
 const homeEvents = $('[data-home-events]');
@@ -29,13 +29,15 @@ const dayNum = (iso) => new Date(iso).toLocaleDateString('en-US', { timeZone: TZ
 function eventDialog(e) {
   const d = document.createElement('dialog');
   d.className = 'dlg';
-  d.innerHTML = `<div class="event-detail">
+  d.innerHTML = `<div class="event-detail${e.flyer_url ? ' event-detail--flyer' : ''}">
+    ${e.flyer_url ? `<a class="event-detail__flyer" href="${esc(mediaUrl(e.flyer_url))}" target="_blank" rel="noopener" title="Open the full flyer"><img src="${esc(mediaUrl(e.flyer_url))}" alt="Flyer for ${esc(e.title)}"></a>` : ''}
+    <div class="event-detail__body">
     <p class="eyebrow">${esc(e.category)}${e.members_only ? ' · Members only' : ''}</p>
     <h2>${esc(e.title)}</h2>
     <p class="event-when">${esc(dateTime(e.starts_at, e.all_day))}${e.ends_at && !e.all_day ? ' – ' + esc(timeOnly(e.ends_at)) : ''}</p>
     ${e.location ? `<p><strong>Where:</strong> ${esc(e.location)}</p>` : ''}
-    ${e.description ? `<p class="pre">${esc(e.description)}</p>` : ''}
-    <div class="dlg__actions"><button class="btn btn--outline btn--small" data-ics>Add to my calendar</button><button class="btn btn--primary btn--small" data-close>Close</button></div></div>`;
+    ${e.description ? `<p class="pre">${linkify(e.description)}</p>` : ''}
+    <div class="dlg__actions">${e.link_url ? `<a class="btn btn--gold btn--small" href="${esc(e.link_url)}" target="_blank" rel="noopener">Register / details</a>` : ''}<button class="btn btn--outline btn--small" data-ics>Add to my calendar</button><button class="btn btn--primary btn--small" data-close>Close</button></div></div></div>`;
   document.body.appendChild(d);
   $('[data-close]', d).onclick = () => d.close();
   $('[data-ics]', d).onclick = () => download(`${e.title.replace(/[^\w]+/g, '-')}.ics`, icsFor(e), 'text/calendar');
@@ -47,6 +49,7 @@ function eventDialog(e) {
 const eventItem = (e, i) => `
   <li><button class="event-row" data-ev="${i}">
     <span class="date-badge"><b>${monthShort(e.starts_at)}</b>${dayNum(e.starts_at)}</span>
+    ${e.flyer_url ? `<img class="event-row__flyer" src="${esc(mediaUrl(e.flyer_url))}" alt="" loading="lazy">` : ''}
     <span class="event-row__text"><strong>${esc(e.title)}</strong><small>${e.all_day ? 'All day' : esc(timeOnly(e.starts_at))}${e.location ? ' · ' + esc(e.location) : ''}</small></span>
   </button></li>`;
 
@@ -57,15 +60,17 @@ async function home(sb) {
   let shown = false;
 
   if (homeAnn && s.home.announcements) {
-    const anns = ok(await sb.from('member_announcements').select('id, title, body, published_on, pinned, link_url, audience')
+    const anns = ok(await sb.from('member_announcements').select('id, title, body, published_on, expires_on, pinned, link_url, flyer_url, audience')
       .in('audience', ['public', 'both']).lte('published_on', todayIso())
-      .order('pinned', { ascending: false }).order('published_on', { ascending: false }).limit(Number(s.home.announcement_count) || 3));
+      .order('pinned', { ascending: false }).order('published_on', { ascending: false }).limit(30))
+      .filter((a) => !a.expires_on || a.expires_on >= todayIso()).slice(0, Number(s.home.announcement_count) || 3);
     if (anns.length) {
       homeAnn.innerHTML = anns.map((a) => `
-        <article class="notice-card${a.pinned ? ' notice-card--pinned' : ''}">
+        <article class="notice-card${a.pinned ? ' notice-card--pinned' : ''}${a.flyer_url ? ' notice-card--flyer' : ''}">
+          ${a.flyer_url ? `<a class="notice-card__flyer" href="${esc(mediaUrl(a.flyer_url))}" data-lightbox title="Open the full flyer"><img src="${esc(mediaUrl(a.flyer_url))}" alt="Flyer: ${esc(a.title)}" loading="lazy"></a>` : ''}
           <p class="notice-card__date">${a.pinned ? 'Pinned · ' : ''}${date(a.published_on)}</p>
           <h3>${esc(a.title)}</h3>
-          <p>${esc(a.body)}</p>
+          <p>${linkify(a.body)}</p>
           ${a.link_url ? `<a class="text-link" href="${esc(a.link_url)}" target="_blank" rel="noopener">More details →</a>` : ''}
         </article>`).join('');
       homeAnn.closest('[data-block]').hidden = false;
