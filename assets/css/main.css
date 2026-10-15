@@ -360,3 +360,21 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
 .nl-card__title { display: block; margin-top: .7rem; font-weight: 700; }
 .nl-card__title small { display: block; font-weight: 400; color: var(--muted); }
 .doc-thumb { width: 34px; height: 44px; object-fit: cover; object-position: top; border-radius: 3px; border: 1px solid var(--line); flex: none; }
+
+/* ---------- Upcoming Sundays (with admin changes + lectionary) ---------- */
+.service-card__note { margin: .4rem 0 0; font-weight: 600; color: var(--gold); }
+.schedule--upcoming li.sun { display: block; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
+.schedule--upcoming li.sun:last-child { border-bottom: 0; padding-bottom: 0; }
+.sun__row { display: flex; justify-content: space-between; gap: 1rem; }
+.sun--changed .sun__row strong { color: var(--gold); }
+.sun--off .sun__row strong { color: #8a2b2b; }
+.sun__note { margin: .15rem 0 0; font-size: .88rem; color: var(--ink); }
+.sun__readings { margin-top: .25rem; font-size: .86rem; }
+.sun__readings summary { cursor: pointer; color: var(--muted); list-style: none; }
+.sun__readings summary::-webkit-details-marker { display: none; }
+.sun__readings summary::before { content: "▸ "; color: var(--gold); }
+.sun__readings[open] summary::before { content: "▾ "; }
+.sun__readings dl { margin: .35rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: .15rem .7rem; }
+.sun__readings dt { color: var(--muted); }
+.sun__readings dd { margin: 0; }
+.schedule--upcoming + p { margin-top: .9rem; }

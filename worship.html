@@ -15,8 +15,8 @@ description: Sunday worship at Mar Thoma Church, Atlanta begins at 10 AM — Mal
 <section class="section">
   <div class="wrap split">
     <div class="prose">
-      <h2>Sunday worship at {{ c.worship.time }}</h2>
-      <p>Our Sunday service begins at {{ c.worship.time }}. We worship in Malayalam on the 1st and 3rd Sundays of the month and in English on the 2nd and 4th Sundays, so everyone in the family can take part fully.</p>
+      <h2>Sunday worship at <span data-worship-time>{{ c.worship.time }}</span></h2>
+      <p>Our Sunday service begins at <span data-worship-time>{{ c.worship.time }}</span>. We worship in <span data-worship-pattern>Malayalam on the 1st and 3rd Sundays, and English on the 2nd and 4th Sundays</span> of the month, so everyone in the family can take part fully.</p>
       <h3>Visiting for the first time?</h3>
       <p>You are welcome as you are. Arrive a few minutes early and someone will be glad to help you find a seat and answer any questions. Children are always welcome.</p>
       <h3>Can’t be there in person?</h3>
@@ -26,7 +26,8 @@ description: Sunday worship at Mar Thoma Church, Atlanta begins at 10 AM — Mal
     </div>
     <aside class="service-card">
       <p class="eyebrow">Upcoming Sundays</p>
-      <ul class="schedule schedule--upcoming" data-upcoming-sundays></ul>
+      <ul class="schedule schedule--upcoming" data-upcoming-sundays data-with-readings></ul>
+      <p class="small muted">Readings from the <a href="https://marthoma.in/prayer/" target="_blank" rel="noopener">Mar Thoma Sabha lectionary</a>.</p>
       <hr>
       <p class="eyebrow">Location</p>
       <p><strong>{{ c.name }}</strong><br>{{ c.address.line1 }}<br>{{ c.address.city }}, {{ c.address.state }} {{ c.address.zip }}</p>

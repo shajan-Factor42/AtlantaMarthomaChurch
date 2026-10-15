@@ -92,6 +92,11 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - Refresh: hourly (`mitra-sources-hourly`, at :07) plus a small job every 10 minutes that reads a few Kalpana PDFs (`mitra-sources-pdfs`). Both are `pg_cron` jobs calling the function with a private key stored in `app_secrets`.
 - **Admin → Portal Settings → Mitra AI reference sources** shows what's loaded, has a **Refresh now** button, an on/off switch for marthoma.in, and a box for up to 25 other web pages Mitra AI may use.
 
+### Worship schedule (Admin → Worship)
+- **Upcoming Sundays:** officers can change any Sunday: language (Malayalam, English, Bilingual, Combined, No service), time, a note (e.g. "Holy Communion", "Episcopal Visit") and the celebrant. Sundays left alone follow the regular pattern. **Reset** returns a Sunday to normal.
+- **Regular pattern** (admins): service time and the language for the 1st–5th Sundays.
+- Changes show on the Worship page (with that Sunday's lectionary readings), the "This Sunday" banner and home card, and in Mitra AI's answers.
+
 ### Flyers and newsletter covers
 - **Flyers:** in Admin → Announcements or Events, use the **Flyer** field to upload a JPG/PNG. It shows beside the announcement on the home page (click to enlarge), in the member portal, as a thumbnail in "Coming up", and in the event's detail window. Editing without choosing a new file keeps the flyer; tick "Remove this flyer" to drop it.
 - **Newsletter covers:** add the PDF to `assets/newsletters/` and an entry to `_data/newsletters.yml` as before. The **Newsletter covers** GitHub Action renders page 1 as the cover and adds the `cover:` line automatically within a few minutes. Newsletters without a cover show a plain blue card.
@@ -101,6 +106,7 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - `supabase/002_admin_events_photos.sql` — events, photo submissions, portal settings, admin write access, file storage.
 - `supabase/functions/admin-users/` — server function behind "Portal access" (deployed as `admin-users`).
 - `supabase/003_chat.sql` + `supabase/functions/chat/` — chat assistant usage limits and function.
+- `supabase/006_worship.sql` — per-Sunday worship changes and the regular pattern; public read of the lectionary.
 - `supabase/005_flyers.sql` — flyer images on events and announcements (public `flyers` bucket) and the events "Register / details" link.
 - `supabase/004_mitra_references.sql` + `supabase/functions/mitra-sources/` — marthoma.in reference copy, search and the scheduled refresh jobs.
 

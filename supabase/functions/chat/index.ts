@@ -92,7 +92,22 @@ async function references(sb: any, today: string, msgs: { role: string; content:
       return `### ${label}: ${h.title}${h.published_on ? ` (${h.published_on})` : ""}\nSource: ${h.url}\n${body || "(text of this document isn't available — share the link)"}`;
     }).join("\n\n");
   }
-  return { lect, circ, found };
+  // Our parish's next Sundays: regular pattern + any changes made in Admin → Worship
+  const { data: wset } = await sb.from("portal_settings").select("value").eq("key", "worship").maybeSingle();
+  const pat = { time: "10:00", schedule: { 1: "Malayalam", 2: "English", 3: "Malayalam", 4: "English", 5: "Special" } as Record<string, string>, fifth_note: "See announcements", ...(wset?.value || {}) };
+  const todayDow = new Date(today + "T12:00:00Z").getUTCDay();
+  const firstSun = addDays(today, (7 - todayDow) % 7);
+  const lastSun = addDays(firstSun, 7 * 7);
+  const { data: wchanges } = await sb.from("worship_services").select("day, language, time, note, celebrant").gte("day", firstSun).lte("day", lastSun);
+  const chg = Object.fromEntries((wchanges || []).map((c: Record<string, string>) => [c.day, c]));
+  const t12 = (t: string) => { const [h, m] = t.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+  const sundays = Array.from({ length: 8 }, (_, i) => {
+    const d = addDays(firstSun, 7 * i), nth = Math.ceil(Number(d.slice(8)) / 7), c = chg[d] || {};
+    const lang = c.language || pat.schedule[String(nth)] || "Special";
+    const note = c.note || (lang === "Special" ? pat.fifth_note : "");
+    return `${d} (${dow(d)}, ${["", "1st", "2nd", "3rd", "4th", "5th"][nth]} Sunday): ${lang === "No service" ? "NO SERVICE" : `${lang} service at ${t12((c.time || pat.time).slice(0, 5))}`}${note ? ` — ${note}` : ""}${c.celebrant ? ` — ${c.celebrant}` : ""}${chg[d] ? " [changed from the regular pattern]" : ""}`;
+  }).join("\n");
+  return { lect, circ, found, sundays };
 }
 
 async function sha(s: string) {
@@ -158,7 +173,7 @@ Deno.serve(async (req: Request) => {
         .order("pinned", { ascending: false }).order("published_on", { ascending: false }).limit(10),
       knowledge(base).catch((e) => { console.error("knowledge", e); return '{"note": "The website information file could not be loaded right now. For anything not covered by the events and announcements below, refer visitors to the church email marthomachurchatlanta@gmail.com."}'; }),
     ]);
-    const refs = await references(sb, today, msgs).catch((e) => { console.error("refs", e); return { lect: "(unavailable right now)", circ: "(unavailable right now)", found: "" }; });
+    const refs = await references(sb, today, msgs).catch((e) => { console.error("refs", e); return { lect: "(unavailable right now)", circ: "(unavailable right now)", found: "", sundays: "" }; });
     const fmt = (iso: string, allDay: boolean) => new Date(iso).toLocaleString("en-US", {
       timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", year: "numeric",
       ...(allDay ? {} : { hour: "numeric", minute: "2-digit" }),
@@ -175,7 +190,7 @@ How to answer:
 - Use ONLY the information in the blocks below. If the answer isn't there, say you don't have that detail and point them to the right contact (church email or the relevant officer), page or marthoma.in. Never invent dates, times, names, phone numbers, addresses, Bible readings or policies.
 - Keep replies short and warm: usually 1–4 sentences, or a short list. Use plain language.
 - When you mention a page, newsletter, Kalpana or the livestream, include its link as a markdown link [like this](url) using the exact URLs given.
-- For which language this Sunday's service is in at our parish: 1st and 3rd Sundays of the month are Malayalam, 2nd and 4th are English. Work out the date from today's date.
+- For the language, time or special notes of a Sunday service at our parish, use the upcoming_sundays block (it includes changes made by the parish office). Normally 1st and 3rd Sundays are Malayalam and 2nd and 4th are English.
 - Reply in the visitor's language (for example Malayalam or English).
 - For prayer requests, pastoral care, sacraments (baptism, weddings, funerals) or anything personal, kindly suggest contacting the Vicar directly. In an emergency, tell them to call 911.
 - You can't see or change anyone's member records, giving or passwords; direct those to the member portal or church secretary.
@@ -199,6 +214,10 @@ ${info}
 </church_information>`;
 
     const dynamicPart = `It is now ${now} (Atlanta time). Today is ${today}.
+
+<upcoming_sundays note="our parish's Sunday services">
+${refs.sundays || "(see the regular pattern)"}
+</upcoming_sundays>
 
 <upcoming_public_events>
 ${eventText}

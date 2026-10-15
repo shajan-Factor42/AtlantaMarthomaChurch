@@ -182,3 +182,31 @@ export const mediaUrl = (u) => !u ? '' : /^https?:\/\//i.test(u) ? u : new URL(S
 
 /** Escape text, then turn bare web addresses into links. */
 export const linkify = (text) => esc(text).replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`);
+
+/* ---------------- Worship: regular pattern + per-Sunday changes ---------------- */
+export const WORSHIP_LANGS = ['Malayalam', 'English', 'Bilingual', 'Combined', 'No service'];
+export const WORSHIP_DEFAULT = { time: '10:00', schedule: { 1: 'Malayalam', 2: 'English', 3: 'Malayalam', 4: 'English', 5: 'Special' }, fifth_note: 'See announcements' };
+/** "19:30" or "19:30:00" → "7:30 PM" */
+export const fmtTime = (t) => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** The next n Sundays (YYYY-MM-DD), starting with this coming Sunday (today if it's Sunday). */
+export function nextSundays(n, from = new Date()) {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  return Array.from({ length: n }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + 7 * i); return ymdLocal(x); });
+}
+/** What a given Sunday looks like once the regular pattern and any change are combined. */
+export function sundayInfo(day, pattern = WORSHIP_DEFAULT, change = null) {
+  const nth = Math.ceil(Number(day.slice(8, 10)) / 7);
+  const regular = (pattern.schedule || {})[nth] || WORSHIP_DEFAULT.schedule[nth];
+  const lang = (change && change.language) || regular;
+  return {
+    day, nth, regular, lang,
+    time: (change && change.time) || pattern.time || WORSHIP_DEFAULT.time,
+    note: (change && change.note) || (nth === 5 && lang === 'Special' ? pattern.fifth_note || '' : ''),
+    celebrant: (change && change.celebrant) || '',
+    changed: !!change
+  };
+}
+/** English parts of a bilingual lectionary title ("Malayalam – English; …"). */
+export const lectionaryEnglish = (title) => (title || '').split(/;|\s[–-]\s/).map((s) => s.trim()).filter((s) => s && !/[ഀ-ൿ]/.test(s)).join(' · ');

@@ -40,7 +40,7 @@ description: Contact the Vicar, executive committee and trustees of Mar Thoma Ch
         <p class="eyebrow">Visit us</p>
         <h2>{{ c.name }}</h2>
         <p class="visit__addr">{{ c.address.line1 }}<br>{{ c.address.city }}, {{ c.address.state }} {{ c.address.zip }}</p>
-        <p>Sunday worship at {{ c.worship.time }} · <a href="tel:{{ c.phone | remove: '-' }}">{{ c.phone }}</a></p>
+        <p>Sunday worship at <span data-worship-time>{{ c.worship.time }}</span> · <a href="tel:{{ c.phone | remove: '-' }}">{{ c.phone }}</a></p>
         <p class="btn-row-inline"><a class="btn btn--primary" href="{{ c.directions_url }}" target="_blank" rel="noopener">Get directions</a> <a class="btn btn--outline" href="{{ c.google_maps_url }}" target="_blank" rel="noopener">Google Maps listing</a></p>
       </div>
       <div class="map-embed map-embed--tall"><iframe src="{{ c.map_embed_url }}" title="Map to {{ c.name }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div>

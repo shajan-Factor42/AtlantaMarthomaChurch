@@ -1,7 +1,8 @@
 // Mar Thoma Church, Atlanta — parish admin
 import {
   getClient, ok, $, $$, esc, val, money, date, dateTime, todayIso, friendly, msg, busy, toast,
-  dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal, prepareImage, mediaUrl
+  dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal, prepareImage, mediaUrl,
+  WORSHIP_LANGS, WORSHIP_DEFAULT, fmtTime, nextSundays, sundayInfo, lectionaryEnglish
 } from './common.js';
 
 const ORGS = (window.MTCA && window.MTCA.orgs) || [];
@@ -1161,3 +1162,88 @@ async function route() {
   if (!sb) { loading.textContent = 'The admin area could not load. Please check your connection and refresh.'; return; }
   await route();
 })();
+
+
+/* ---------------------------------------------------------------------
+   Worship: upcoming Sundays (officers) + regular pattern (admins)
+--------------------------------------------------------------------- */
+const longDay = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+const ordinal = (n) => ['', '1st', '2nd', '3rd', '4th', '5th'][n];
+
+VIEWS.worship = async function () {
+  const weeks = ctx.worshipWeeks || 10;
+  const days = nextSundays(weeks);
+  const [setRow, changes, lect] = await Promise.all([
+    sb.from('portal_settings').select('value').eq('key', 'worship').maybeSingle(),
+    sb.from('worship_services').select('*').gte('day', days[0]).lte('day', days[days.length - 1]),
+    sb.from('ref_lectionary').select('day, title').gte('day', days[0]).lte('day', days[days.length - 1])
+  ]);
+  const pattern = { ...WORSHIP_DEFAULT, ...((setRow.data && setRow.data.value) || {}) };
+  pattern.schedule = { ...WORSHIP_DEFAULT.schedule, ...(pattern.schedule || {}) };
+  ctx.worship = { pattern, days, changes: Object.fromEntries((ok(changes) || []).map((c) => [c.day, c])), lect: Object.fromEntries(((lect.data) || []).map((l) => [l.day, l.title])) };
+  const rows = days.map((d) => sundayInfo(d, pattern, ctx.worship.changes[d]));
+  const langOpts = ['Malayalam', 'English', 'Bilingual', 'Combined', 'Special'];
+  return `
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Upcoming Sundays</h2>
+        <p class="muted small">Each Sunday follows the regular pattern unless you change it. Changes appear on the Worship page, the “This Sunday” banner and home page, and in Mitra AI’s answers.</p></div></div>
+      <div class="table-wrap"><table class="table worship-table">
+        <thead><tr><th>Sunday</th><th>Service</th><th>Notes</th><th class="hide-sm">Lectionary</th><th></th></tr></thead>
+        <tbody>${rows.map((r) => `<tr class="${r.changed ? 'is-changed' : ''}${r.lang === 'No service' ? ' is-off' : ''}">
+          <td class="nowrap"><strong>${esc(longDay(r.day))}</strong><br><small class="muted">${ordinal(r.nth)} Sunday</small></td>
+          <td><span class="pill pill--lang-${esc(r.lang.toLowerCase().replace(/\s+/g, '-'))}">${esc(r.lang)}</span>${r.lang !== 'No service' ? `<br><small class="muted">${esc(fmtTime(r.time))}</small>` : ''}
+            ${r.changed ? '<br><span class="badge">Changed</span>' : ''}</td>
+          <td>${r.note ? esc(r.note) : '<span class="muted">—</span>'}${r.celebrant ? `<br><small class="muted">${esc(r.celebrant)}</small>` : ''}</td>
+          <td class="hide-sm"><small>${esc(lectionaryEnglish(ctx.worship.lect[r.day]) || '—')}</small></td>
+          <td class="row-actions"><button class="link-btn" data-wedit="${r.day}">Edit</button>${r.changed ? `<button class="link-btn link-btn--danger" data-wreset="${r.day}">Reset</button>` : ''}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <p><button class="btn btn--outline btn--small" id="worship-more">Show ${weeks >= 52 ? 'fewer' : 'more'} Sundays</button></p>
+    </section>
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Regular pattern</h2>
+        <p class="muted small">Used for every Sunday you haven’t changed above.${isAdmin() ? '' : ' Only an admin can change it.'}</p></div></div>
+      <form id="pattern-form" class="form form--flat">
+        <div class="row-3">
+          <label>Service time<input type="time" name="time" value="${esc(pattern.time)}" required ${isAdmin() ? '' : 'disabled'}></label>
+        </div>
+        <div class="row-5">${[1, 2, 3, 4, 5].map((n) => `<label>${ordinal(n)} Sunday<select name="s${n}" ${isAdmin() ? '' : 'disabled'}>${langOpts.map((l) => `<option ${pattern.schedule[n] === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>
+        <label>Note for 5th Sundays marked “Special”<input name="fifth_note" value="${esc(pattern.fifth_note || '')}" maxlength="120" ${isAdmin() ? '' : 'disabled'}></label>
+        ${isAdmin() ? '<div><button class="btn btn--primary" type="submit">Save pattern</button><p class="form__msg" role="status"></p></div>' : ''}
+      </form>
+    </section>`;
+};
+
+BIND.worship = function () {
+  const W = ctx.worship;
+  $('#worship-more').onclick = () => { ctx.worshipWeeks = (ctx.worshipWeeks || 10) >= 52 ? 10 : (ctx.worshipWeeks || 10) + 12; show('worship'); };
+  $$('[data-wedit]', view).forEach((b) => (b.onclick = () => {
+    const day = b.dataset.wedit, c = W.changes[day] || {}, info = sundayInfo(day, W.pattern, null);
+    const html = `
+      <p class="muted">${esc(longDay(day))} · regularly <strong>${esc(info.regular)}</strong> at ${esc(fmtTime(W.pattern.time))}${W.lect[day] ? `<br>Lectionary: ${esc(lectionaryEnglish(W.lect[day]))}` : ''}</p>
+      <div class="row-2">
+        <label>Service<select name="language"><option value="">Regular (${esc(info.regular)})</option>${WORSHIP_LANGS.map((l) => `<option ${c.language === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>Time<input type="time" name="time" value="${esc((c.time || '').slice(0, 5))}"><small class="muted">Leave blank for the regular ${esc(fmtTime(W.pattern.time))}</small></label>
+      </div>
+      <label>Note<input name="note" maxlength="160" value="${esc(c.note || '')}" placeholder="e.g. Holy Communion · Episcopal Visit · Harvest Festival after service"></label>
+      <label>Celebrant / preacher (optional)<input name="celebrant" maxlength="120" value="${esc(c.celebrant || '')}" placeholder="e.g. Rev. …"></label>`;
+    dialog(`Edit ${longDay(day)}`, html, async (v) => {
+      const row = { day, language: v.language || null, time: v.time || null, note: (v.note || '').trim() || null, celebrant: (v.celebrant || '').trim() || null, updated_at: new Date().toISOString(), updated_by: me.id };
+      if (!row.language && !row.time && !row.note && !row.celebrant) { if (W.changes[day]) ok(await sb.from('worship_services').delete().eq('day', day)); toast('Back to the regular pattern'); }
+      else { ok(await sb.from('worship_services').upsert(row, { onConflict: 'day' })); toast('Sunday updated'); }
+      await show('worship');
+    });
+  }));
+  $$('[data-wreset]', view).forEach((b) => (b.onclick = () => confirmDialog('Reset this Sunday?', `${esc(longDay(b.dataset.wreset))} will go back to the regular pattern.`, async () => {
+    ok(await sb.from('worship_services').delete().eq('day', b.dataset.wreset)); toast('Back to the regular pattern'); await show('worship');
+  })));
+  const f = $('#pattern-form');
+  if (f && isAdmin()) f.onsubmit = async (e) => {
+    e.preventDefault(); busy(f, true);
+    try {
+      const value = { time: f.time.value || '10:00', schedule: Object.fromEntries([1, 2, 3, 4, 5].map((n) => [n, f[`s${n}`].value])), fifth_note: f.fifth_note.value.trim() };
+      ok(await sb.from('portal_settings').upsert({ key: 'worship', value, updated_at: new Date().toISOString() }, { onConflict: 'key' }));
+      toast('Regular pattern saved'); await show('worship');
+    } catch (err) { msg(f, friendly(err), true); } finally { busy(f, false); }
+  };
+};

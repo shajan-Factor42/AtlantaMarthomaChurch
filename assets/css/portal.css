@@ -302,3 +302,15 @@ body.is-admin { background: #f3f5f8; }
 .flyer-field__label { font-weight: 600; font-size: .92rem; }
 .flyer-field__current { display: flex; align-items: center; gap: 1rem; }
 .flyer-field__current img { width: 84px; max-height: 110px; object-fit: cover; object-position: top; border-radius: 6px; border: 1px solid var(--line); }
+
+/* Worship */
+.row-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: .8rem; }
+@media (max-width: 720px) { .row-5 { grid-template-columns: 1fr 1fr; } }
+.worship-table tr.is-changed td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.worship-table tr.is-off td { color: var(--muted); }
+.pill--lang-malayalam { background: #e8eef6; color: #2f4a68; }
+.pill--lang-english { background: #eef3e8; color: #3c5a2a; }
+.pill--lang-bilingual, .pill--lang-combined { background: #f6efe1; color: #7a5a1c; }
+.pill--lang-special { background: #f1ecf6; color: #5b4378; }
+.pill--lang-no-service { background: #f6e6e6; color: #8a2b2b; }
+@media (max-width: 720px) { .hide-sm { display: none; } }

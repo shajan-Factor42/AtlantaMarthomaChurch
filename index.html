@@ -26,11 +26,12 @@ layout: default
     </div>
     <aside class="service-card">
       <p class="eyebrow">This Sunday</p>
-      <p class="service-card__time">{{ site.data.church.worship.time }}</p>
+      <p class="service-card__time" data-sunday-time>{{ site.data.church.worship.time }}</p>
       <p class="service-card__lang"><span data-sunday-language>Sunday</span> service</p>
       <p class="service-card__date" data-sunday-date></p>
+      <p class="service-card__note" data-sunday-note hidden></p>
       <hr>
-      <ul class="schedule">
+      <ul class="schedule" data-worship-schedule>
         <li><span>1st &amp; 3rd Sundays</span><strong>Malayalam</strong></li>
         <li><span>2nd &amp; 4th Sundays</span><strong>English</strong></li>
       </ul>
