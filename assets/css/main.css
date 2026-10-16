@@ -456,3 +456,11 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
 .join-band__steps li { display: flex; align-items: center; gap: .75rem; font-weight: 600; }
 .join-band__steps span { flex: none; width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; background: var(--tint); color: var(--primary); font-family: var(--serif); font-size: 1.15rem; font-weight: 700; border: 1px solid var(--line); }
 @media (max-width: 960px) { .join-band__inner { grid-template-columns: 1fr; gap: 1.25rem; } .join-band__cta { justify-self: start; } }
+.pr-who { display: grid; gap: .9rem; }
+.pr-who[hidden], .pr-anon-note[hidden] { display: none; }
+.pr-anon-note { margin: 0; padding: .7rem .9rem; border-radius: 8px; background: var(--tint); color: var(--muted); font-size: .93rem; }
+.nm-form .pr-anon { font-weight: 600; }
+.join-band__ctas { display: grid; gap: .7rem; justify-items: center; }
+@media (max-width: 960px) { .join-band__ctas { justify-items: start; } }
+.topbar__links a { white-space: nowrap; }
+@media (max-width: 520px) { .topbar__long { display: none; } .topbar__links { gap: .9rem; } }

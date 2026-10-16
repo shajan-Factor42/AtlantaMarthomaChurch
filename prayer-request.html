@@ -1,0 +1,68 @@
+---
+layout: default
+title: Prayer Request
+permalink: /prayer-request/
+description: Send a prayer request to the Vicar of Mar Thoma Church, Atlanta. You can send it anonymously.
+---
+{% assign v = site.data.leadership.vicar %}
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Prayer Request</p>
+    <h1>How can we pray for you?</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap nm">
+    <aside class="nm__intro">
+      <h2>We would be honoured to pray with you</h2>
+      <p>“Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.” <span class="muted">— Philippians 4:6</span></p>
+      <p>Your request goes privately to Achen ({{ v.name }}). You can share your name so he can follow up, or send it <strong>anonymously</strong>.</p>
+      <p>Nothing you write here is ever posted on the website.</p>
+      <p class="nm__contact">To speak with Achen directly, call <a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a>. In an emergency, call 911.</p>
+    </aside>
+
+    <form class="nm-form" id="prayer-form" novalidate>
+      <fieldset>
+        <legend>Your prayer request</legend>
+        <label>This prayer is for<select name="for_whom">
+          <option value="">Choose (optional)…</option><option>Myself</option><option>My family</option><option>A friend</option><option>Someone else</option><option>Our church</option><option>Other</option></select></label>
+        <label>Prayer request *<textarea name="request" rows="7" maxlength="3000" required placeholder="Share as much or as little as you’d like."></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>About you</legend>
+        <label class="nm-check pr-anon"><input type="checkbox" name="anonymous"> Send anonymously <span class="opt">— your name and contact details are not sent</span></label>
+        <div class="pr-who">
+          <label>Your name <span class="opt">(optional)</span><input name="name" autocomplete="name" maxlength="120"></label>
+          <div class="nm-row nm-row--2">
+            <label>Email <span class="opt">(optional)</span><input type="email" name="email" autocomplete="email" maxlength="160"></label>
+            <label>Phone <span class="opt">(optional)</span><input type="tel" name="phone" autocomplete="tel" maxlength="40"></label>
+          </div>
+          <label class="nm-check"><input type="checkbox" name="wants_contact"> I’d like Achen to contact me</label>
+        </div>
+        <p class="pr-anon-note" hidden>Your request will be sent without your name, email or phone. Achen won’t be able to reply to you.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Sharing</legend>
+        <label class="nm-check"><input type="checkbox" name="share_ok"> Achen may include this request, without any names, in Sunday intercessions or the prayer group</label>
+        <label class="nm-hp" aria-hidden="true">Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label>
+      </fieldset>
+
+      <div class="nm-submit">
+        <button class="btn btn--gold" type="submit">Send prayer request</button>
+        <p class="nm-msg" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+
+    <div class="nm-done" id="pr-done" hidden tabindex="-1">
+      <p class="eyebrow">Thank you</p>
+      <h2>Your prayer request has been received</h2>
+      <p>Achen will be praying with you. “The Lord is near to all who call on him.” <span class="muted">— Psalm 145:18</span></p>
+      <p class="btn-row-inline"><button class="btn btn--outline" type="button" id="pr-another">Send another request</button> <a class="btn btn--primary" href="{{ '/worship/' | relative_url }}">Sunday worship</a></p>
+    </div>
+  </div>
+</section>
+
+<script src="{{ '/assets/js/prayer-request.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>

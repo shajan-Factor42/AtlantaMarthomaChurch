@@ -260,6 +260,7 @@ async function show(tab) {
   if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
   refreshPhotoCount();
   if (typeof refreshNmCount === 'function') refreshNmCount();
+  if (typeof checkPrayerAccess === 'function' && tab !== 'prayer') checkPrayerAccess();
 }
 
 async function refreshPhotoCount() {
@@ -2465,3 +2466,91 @@ BIND.newmembers = function () {
     catch (err) { msg(sf, friendly(err), true); } finally { busy(sf, false); }
   };
 };
+
+/* ---------------------------------------------------------------------
+   Prayer Requests (private: only the listed viewers, normally the Vicar)
+--------------------------------------------------------------------- */
+const PR_STATUS = { new: 'New', prayed: 'Prayed for', followed_up: 'Followed up', closed: 'Closed' };
+let prayerViewer = false;
+async function checkPrayerAccess() {
+  try { const { data } = await sb.rpc('can_view_prayer'); prayerViewer = data === true; } catch (e) { prayerViewer = false; }
+  const tab = $('#tabs [data-tab=prayer]'); if (tab) tab.hidden = !prayerViewer;
+  if (prayerViewer) {
+    const { count } = await sb.from('prayer_requests').select('id', { count: 'exact', head: true }).eq('status', 'new');
+    const el = $('#pr-count'); if (el) { el.textContent = count || ''; el.hidden = !count; }
+  }
+}
+
+VIEWS.prayer = async function () {
+  await checkPrayerAccess();
+  if (!prayerViewer) return '<section class="pcard"><h2>Prayer requests are private</h2><p>Only the people listed in Portal Settings → Prayer requests can read them.</p></section>';
+  const rows = ok(await sb.from('prayer_requests').select('*').order('created_at', { ascending: false }).limit(500));
+  ctx.prRows = rows;
+  const filter = ctx.prFilter || 'new';
+  const shown = rows.filter((r) => filter === 'all' || r.status === filter || (filter === 'open' && r.status !== 'closed'));
+  return `
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Prayer requests</h2>
+        <p class="muted small">From the <a href="../prayer-request/" target="_blank" rel="noopener">Prayer Request page</a>. Private to you${rows.some((r) => r.email_status === 'not configured') ? ' (email copies start once email sending is set up)' : ''}.</p></div></div>
+      <div class="seg" role="tablist">${[['new', 'New'], ['prayed', 'Prayed for'], ['followed_up', 'Followed up'], ['closed', 'Closed'], ['all', 'All']].map(([k, l]) => `<button data-prf="${k}" aria-selected="${k === filter}">${l} <span class="muted">${k === 'all' ? rows.length : rows.filter((r) => r.status === k).length}</span></button>`).join('')}</div>
+      ${shown.length ? `<div class="pr-list">${shown.map((r) => `
+        <article class="pr-item${r.status === 'new' ? ' is-new' : ''}">
+          <div class="pr-item__head">
+            <div><strong>${r.anonymous ? 'Anonymous' : esc(r.name || 'Name not given')}</strong>${r.for_whom ? ` <span class="muted">· for ${esc(r.for_whom.toLowerCase())}</span>` : ''}
+              <br><small class="muted">${esc(nmWhen(r.created_at))}${r.share_ok ? ' · may be shared without names' : ' · keep private'}</small></div>
+            <span class="pill pill--pr-${r.status}">${PR_STATUS[r.status]}</span>
+          </div>
+          <p class="pr-item__text">${esc(r.request)}</p>
+          ${!r.anonymous && (r.email || r.phone) ? `<p class="small">${r.wants_contact ? '<strong>Would like a call.</strong> ' : ''}${r.phone ? `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>` : ''}${r.phone && r.email ? ' · ' : ''}${r.email ? `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ''}</p>` : ''}
+          <div class="pr-item__notes"><textarea data-prnote="${r.id}" rows="2" placeholder="Private note (optional)">${esc(r.notes || '')}</textarea></div>
+          <div class="btn-row">
+            ${Object.entries(PR_STATUS).filter(([k]) => k !== r.status && k !== 'new').map(([k, l]) => `<button class="btn btn--outline btn--small" data-prset="${r.id}" data-s="${k}">${k === 'prayed' ? 'Mark prayed for' : k === 'followed_up' ? 'Mark followed up' : 'Close'}</button>`).join('')}
+            ${r.status !== 'new' ? `<button class="link-btn" data-prset="${r.id}" data-s="new">Mark as new</button>` : ''}
+          </div>
+        </article>`).join('')}</div>` : `<p class="empty">${filter === 'new' ? 'No new prayer requests.' : 'Nothing here.'}</p>`}
+    </section>`;
+};
+BIND.prayer = function () {
+  $$('[data-prf]', view).forEach((b) => (b.onclick = () => { ctx.prFilter = b.dataset.prf; show('prayer'); }));
+  $$('[data-prset]', view).forEach((b) => (b.onclick = async () => {
+    const note = $(`[data-prnote="${b.dataset.prset}"]`, view);
+    ok(await sb.from('prayer_requests').update({ status: b.dataset.s, notes: note ? note.value.trim() || null : undefined, handled_at: new Date().toISOString() }).eq('id', b.dataset.prset));
+    toast(PR_STATUS[b.dataset.s]); await show('prayer');
+  }));
+  $$('[data-prnote]', view).forEach((t) => (t.onchange = async () => { ok(await sb.from('prayer_requests').update({ notes: t.value.trim() || null }).eq('id', t.dataset.prnote)); toast('Note saved'); }));
+};
+
+/* Portal Settings card: who receives and who can read prayer requests (admins) */
+{
+  const viewSettings = VIEWS.settings, bindSettings = BIND.settings;
+  VIEWS.settings = async function () {
+    const html = await viewSettings.call(VIEWS);
+    if (!isAdmin()) return html;
+    const { data } = await sb.from('portal_settings').select('value').eq('key', 'prayer').maybeSingle();
+    const c = { enabled: true, recipients: ['vicar@mtcatlanta.org'], viewers: ['vicar@mtcatlanta.org'], ...((data && data.value) || {}) };
+    return html + `
+      <section class="pcard" id="prayer-card">
+        <h2>Prayer requests</h2>
+        <p class="muted small">Requests from the Prayer Request page are private. Only the people below can read them in Admin; they need a portal account with the same email.</p>
+        <form id="prayer-settings" class="form form--flat">
+          <label class="toggle"><input type="checkbox" name="enabled" ${c.enabled !== false ? 'checked' : ''}><span>Accept prayer requests on the website</span></label>
+          <label>Email each request to <small class="muted">— one address per line</small><textarea name="recipients" rows="2">${esc((c.recipients || []).join('\n'))}</textarea></label>
+          <label>People who can read requests in Admin <small class="muted">— their portal login emails</small><textarea name="viewers" rows="2">${esc((c.viewers || []).join('\n'))}</textarea></label>
+          <div><button class="btn btn--primary" type="submit">Save</button><p class="form__msg" role="status"></p></div>
+        </form>
+      </section>`;
+  };
+  BIND.settings = function () {
+    if (bindSettings) bindSettings.call(BIND);
+    const f = $('#prayer-settings'); if (!f) return;
+    const emails = (t) => [...new Set(t.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x)))].slice(0, 10);
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const value = { enabled: f.enabled.checked, recipients: emails(f.recipients.value), viewers: emails(f.viewers.value) };
+      if (!value.viewers.length) return msg(f, 'Add at least one person who can read the requests.', true);
+      busy(f, true);
+      try { ok(await sb.from('portal_settings').upsert({ key: 'prayer', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })); toast('Prayer request settings saved'); await checkPrayerAccess(); msg(f, 'Saved.'); }
+      catch (err) { msg(f, friendly(err), true); } finally { busy(f, false); }
+    };
+  };
+}

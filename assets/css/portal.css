@@ -435,3 +435,15 @@ body.is-admin { background: #f3f5f8; }
 .nm-fam { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
 .btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 .nm-detail { align-items: start; } @media (max-width: 860px) { .nm-detail { grid-template-columns: 1fr; } }
+
+/* Prayer requests */
+.pr-list { display: grid; gap: 1rem; margin-top: 1rem; }
+.pr-item { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; background: var(--white); }
+.pr-item.is-new { border-left: 4px solid var(--gold); }
+.pr-item__head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.pr-item__text { white-space: pre-wrap; margin: .7rem 0; font-size: 1.02rem; }
+.pr-item__notes textarea { width: 100%; box-sizing: border-box; font: inherit; padding: .5rem .7rem; border: 1px solid var(--line); border-radius: 8px; resize: vertical; margin-bottom: .6rem; }
+.pill--pr-new { background: var(--gold-soft); color: var(--primary-deep); border-color: var(--gold-soft); }
+.pill--pr-prayed { background: #f1ecf6; color: #5b4378; border-color: #e2d8ee; }
+.pill--pr-followed_up { background: #e6f2ea; color: #2f6b3a; border-color: #c9e3d1; }
+.pill--pr-closed { background: #f1f1f1; color: #666; border-color: #e2e2e2; }

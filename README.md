@@ -97,6 +97,11 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - In Admin: add office notes, **Mark as contacted**, **Add family to the parish register** (creates the family and its members in one click), or **Close request**.
 - Email uses the same Resend setup as newsletters and greetings (`RESEND_API_KEY` + mtcatlanta.org verified in Resend). Until then requests are still saved in Admin.
 
+### Prayer requests (/prayer-request/)
+- Anyone can send a prayer request, with their name and contact details or **anonymously** (then no name, email or phone is stored at all). They can also say whether it may be mentioned, without names, in intercessions or the prayer group.
+- Requests are private: the **Prayer Requests** tab in Admin appears only for the people listed under **Portal Settings → Prayer requests** (default: vicar@mtcatlanta.org; they need a portal account with that email). Other officers and admins cannot read them. Each request is also emailed to the Vicar once email sending is set up.
+- Linked from the top bar on every page, the home page, Worship and Contact pages; Mitra AI points people to it.
+
 ### Worship schedule (Admin → Worship)
 - **Upcoming Sundays:** officers can change any Sunday: language (Malayalam, English, Bilingual, Combined, No service), time, a note (e.g. "Holy Communion", "Episcopal Visit") and the celebrant. Sundays left alone follow the regular pattern. **Reset** returns a Sunday to normal.
 - **Regular pattern** (admins): service time and the language for the 1st–5th Sundays.
@@ -111,6 +116,7 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - `supabase/002_admin_events_photos.sql` — events, photo submissions, portal settings, admin write access, file storage.
 - `supabase/functions/admin-users/` — server function behind "Portal access" (deployed as `admin-users`).
 - `supabase/003_chat.sql` + `supabase/functions/chat/` — chat assistant usage limits and function.
+- `supabase/012_prayer_requests.sql` + `supabase/functions/prayer-request/` — private prayer requests.
 - `supabase/011_new_members.sql` + `supabase/functions/new-member/` — New Members form requests and the staff email.
 - `supabase/006_worship.sql` — per-Sunday worship changes and the regular pattern; public read of the lectionary.
 - `supabase/005_flyers.sql` — flyer images on events and announcements (public `flyers` bucket) and the events "Register / details" link.

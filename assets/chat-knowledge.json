@@ -30,6 +30,7 @@ permalink: /assets/chat-knowledge.json
     "Gallery": {{ base | append: "/gallery/" | jsonify }},
     "Newsletters": {{ base | append: "/newsletters/" | jsonify }},
     "Contact": {{ base | append: "/contact-us/" | jsonify }},
+    "Prayer request (private to the Vicar, can be anonymous)": {{ base | append: "/prayer-request/" | jsonify }},
     "New Members (form to join the parish)": {{ base | append: "/new-members/" | jsonify }},
     "Member portal": {{ base | append: "/members/" | jsonify }}
   },
