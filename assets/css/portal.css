@@ -360,3 +360,16 @@ body.is-admin { background: #f3f5f8; }
   .stat-row .stat strong { font-size: 1.35rem; }
   .stat-row .stat span { font-size: .62rem; letter-spacing: .04em; }
 }
+.nl-cover { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; align-items: start; margin: 0 0 .75rem; }
+.nl-cover img { width: 100%; aspect-ratio: 516 / 180; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: var(--tint); }
+.nl-h .check { display: inline-flex !important; font-size: inherit; font-weight: inherit; color: inherit; }
+.nl-sundays input { width: 100%; min-width: 110px; padding: .4rem .5rem; font: inherit; font-size: .88rem; border: 1px solid #cdd8e4; border-radius: 8px; }
+.nl-sundays td { vertical-align: top; }
+.nl-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: .6rem; }
+.nl-photo { position: relative; display: grid !important; gap: .25rem; cursor: pointer; font-weight: 400 !important; }
+.nl-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; border: 3px solid transparent; }
+.nl-photo input { position: absolute; top: 8px; left: 8px; width: 20px; height: 20px; accent-color: var(--primary); }
+.nl-photo:has(input:checked) img { border-color: var(--gold); }
+.nl-photo small { color: var(--muted); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-2 > label > span { display: flex; align-items: center; gap: .4rem; }
+@media (max-width: 700px) { .nl-cover { grid-template-columns: 1fr; } }

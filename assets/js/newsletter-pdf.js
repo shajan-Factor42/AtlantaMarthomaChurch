@@ -1,13 +1,25 @@
-// Builds the parish newsletter PDF in the browser (Admin → Newsletters).
-// Text is real PDF text (sharp, searchable, clickable links). Paragraphs written in Malayalam are
-// drawn by the browser first and placed as images, because PDF fonts can't shape Malayalam script.
+// Builds the parish newsletter PDF in the browser (Admin → Newsletters), in the same house style as
+// the Canva newsletters: running header with the church crest, "MONTHLY NEWSLETTER" cover with the
+// church photo and the Vicar's letter, a SUNDAY worship + lectionary table, a calendar table,
+// "A Few Notes To Remember", birthday and anniversary boxes, flyer pages and a photo "Quick Glimpse".
+// Text is real PDF text (sharp, searchable, clickable links). Malayalam is drawn by the browser
+// first and placed as an image, because PDF fonts can't shape Malayalam script.
 
 const PDFMAKE = 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.23/build/';
-const C = { primary: '#4f6d8f', deep: '#3d5875', gold: '#c09243', goldSoft: '#e8d3a6', ink: '#1f2a36', muted: '#5f6b78', line: '#e2e8ef', tint: '#f4f7fa', link: '#2f5d8a' };
-const PAGE_W = 612, MARGIN = 48, CONTENT_W = PAGE_W - MARGIN * 2;
+const ASSETS = new URL('../newsletter/', import.meta.url).href;
+const C = {
+  paper: '#f6f3ee', paper2: '#ece6dd', ink: '#1d1915', muted: '#5a5048', rule: '#1d1915',
+  tan: '#d9c4a4', brown: '#8a5a2c', dark: '#3a2a1d', cream: '#fdf8ee', boxLine: '#dcc29c', link: '#6b4220', white: '#ffffff'
+};
+const PAGE_W = 612, PAGE_H = 792, MARGIN = 44, CONTENT_W = PAGE_W - MARGIN * 2;
 const MALAYALAM = /[ഀ-ൿ]/;
 const TZ = 'America/New_York';
+const FONT_FILES = {
+  Tinos: { normal: 'Tinos-Regular.ttf', bold: 'Tinos-Bold.ttf', italics: 'Tinos-Italic.ttf', bolditalics: 'Tinos-BoldItalic.ttf' },
+  Playfair: { normal: 'PlayfairDisplay-Regular.ttf', bold: 'PlayfairDisplay-Bold.ttf', italics: 'PlayfairDisplay-Regular.ttf', bolditalics: 'PlayfairDisplay-Bold.ttf' }
+};
 
+/* ---------- loading ---------- */
 let loader = null;
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -16,36 +28,63 @@ function loadScript(src) {
     document.head.appendChild(s);
   });
 }
+async function toB64(buf) {
+  const bytes = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 export function loadPdfMake() {
-  if (window.pdfMake && window.pdfMake.vfs) return Promise.resolve(window.pdfMake);
-  loader ||= loadScript(PDFMAKE + 'pdfmake.min.js').then(() => loadScript(PDFMAKE + 'vfs_fonts.js')).then(() => window.pdfMake);
+  loader ||= (async () => {
+    if (!window.pdfMake) await loadScript(PDFMAKE + 'pdfmake.min.js');
+    const pm = window.pdfMake;
+    const files = [...new Set(Object.values(FONT_FILES).flatMap((f) => Object.values(f)))];
+    const vfs = {};
+    await Promise.all(files.map(async (f) => {
+      const r = await fetch(ASSETS + 'fonts/' + f);
+      if (!r.ok) throw new Error('Could not load the newsletter fonts.');
+      vfs[f] = await toB64(await r.arrayBuffer());
+    }));
+    if (typeof pm.addVirtualFileSystem === 'function') pm.addVirtualFileSystem(vfs); else pm.vfs = { ...(pm.vfs || {}), ...vfs };
+    if (typeof pm.addFonts === 'function') pm.addFonts(FONT_FILES); else pm.fonts = { ...(pm.fonts || {}), ...FONT_FILES };
+    return pm;
+  })().catch((e) => { loader = null; throw e; });
   return loader;
 }
 
 /* ---------- helpers ---------- */
-const parts = (iso) => {
-  const d = new Date(iso);
-  const f = (o) => d.toLocaleString('en-US', { timeZone: TZ, ...o });
-  return { mon: f({ month: 'short' }).toUpperCase(), day: f({ day: 'numeric' }), wk: f({ weekday: 'short' }) };
-};
+const fmtDate = (iso, o) => new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...o });
 export function eventWhen(ev) {
-  const s = new Date(ev.starts_at);
-  const day = s.toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' });
+  const day = fmtDate(ev.starts_at, { weekday: 'long', month: 'long', day: 'numeric' });
   if (ev.all_day) {
-    if (ev.ends_at && new Date(ev.ends_at).toDateString() !== s.toDateString()) {
-      return `${day} – ${new Date(ev.ends_at).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' })}`;
-    }
+    if (ev.ends_at && fmtDate(ev.ends_at, { dateStyle: 'short' }) !== fmtDate(ev.starts_at, { dateStyle: 'short' })) return `${day} – ${fmtDate(ev.ends_at, { weekday: 'long', month: 'long', day: 'numeric' })}`;
     return day;
   }
-  const t = (d) => d.toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
-  return `${day} · ${t(s)}${ev.ends_at ? ` – ${t(new Date(ev.ends_at))}` : ''}`;
+  const t = (iso) => fmtDate(iso, { hour: 'numeric', minute: '2-digit' });
+  return `${day} · ${t(ev.starts_at)}${ev.ends_at ? ` – ${t(ev.ends_at)}` : ''}`;
+}
+/** "Friday, November 6, 2026 at 7:30 pm" — the timing style used in past newsletters. */
+function timing(ev) {
+  const day = fmtDate(ev.starts_at, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  if (ev.all_day) return day;
+  const t = (iso) => fmtDate(iso, { hour: 'numeric', minute: '2-digit' }).replace(' AM', ' am').replace(' PM', ' pm');
+  return `${day} at ${t(ev.starts_at)}${ev.ends_at && fmtDate(ev.ends_at, { dateStyle: 'short' }) === fmtDate(ev.starts_at, { dateStyle: 'short' }) ? ` – ${t(ev.ends_at)}` : ''}`;
 }
 const paras = (text) => String(text || '').replace(/\r/g, '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+const linkify = (line, color = C.link) => {
+  const parts = []; let last = 0;
+  String(line).replace(/(https?:\/\/[^\s]+|[\w.+-]+@[\w-]+\.[\w.]+)/g, (m, _x, i) => {
+    if (i > last) parts.push(line.slice(last, i));
+    parts.push({ text: m, link: m.includes('@') && !m.startsWith('http') ? `mailto:${m}` : m, color });
+    last = i + m.length; return m;
+  });
+  if (last < line.length) parts.push(line.slice(last));
+  return parts.length ? parts : [line];
+};
 
 /** Draw text (any script) onto a canvas, wrapped to `width` points; returns a pdfmake image node. */
-function textImage(text, width, { size = 10.5, bold = false, color = C.ink, lineHeight = 1.45, margin = [0, 0, 0, 6] } = {}) {
+function textImage(text, width, { size = 10.5, bold = false, color = C.ink, lineHeight = 1.45, align = 'left', margin = [0, 0, 0, 6] } = {}) {
   const scale = 3;
-  const font = `${bold ? '700 ' : ''}${size * scale}px "Noto Sans Malayalam", "Nirmala UI", "Kartika", "Manjari", system-ui, sans-serif`;
+  const font = `${bold ? '700 ' : ''}${size * scale}px "Noto Serif Malayalam", "Noto Sans Malayalam", "Nirmala UI", "Kartika", "Manjari", serif`;
   const c = document.createElement('canvas');
   const g = c.getContext('2d');
   g.font = font;
@@ -61,189 +100,249 @@ function textImage(text, width, { size = 10.5, bold = false, color = C.ink, line
   }
   const lh = size * lineHeight * scale;
   c.width = Math.ceil(maxW); c.height = Math.ceil(lh * lines.length + size * 0.4 * scale);
-  g.font = font; g.fillStyle = color; g.textBaseline = 'top';
-  lines.forEach((l, i) => g.fillText(l, 0, i * lh + size * 0.15 * scale));
+  g.font = font; g.fillStyle = color; g.textBaseline = 'top'; g.textAlign = align === 'center' ? 'center' : 'left';
+  lines.forEach((l, i) => g.fillText(l, align === 'center' ? c.width / 2 : 0, i * lh + size * 0.15 * scale));
   return { image: c.toDataURL('image/png'), width, margin };
 }
 /** A paragraph as PDF text, or as an image when it contains Malayalam. */
-function para(text, width, style = {}) {
-  if (MALAYALAM.test(text)) return textImage(text, width, style);
-  return { text, fontSize: style.size || 10.5, bold: !!style.bold, color: style.color || C.ink, lineHeight: style.lineHeight || 1.3, margin: style.margin || [0, 0, 0, 6] };
+function para(text, width, s = {}) {
+  if (MALAYALAM.test(text)) return textImage(text, width, s);
+  return { text: s.links === false ? text : linkify(text), fontSize: s.size || 10.5, bold: !!s.bold, italics: !!s.italics, color: s.color || C.ink, lineHeight: s.lineHeight || 1.3, alignment: s.align || 'left', margin: s.margin || [0, 0, 0, 6], font: s.font };
 }
-const paraBlock = (text, width, style) => paras(text).map((p) => para(p, width, style));
+const paraBlock = (text, width, s) => paras(text).map((p) => para(p, width, s));
 
-/** Fetch an image (any web format) and return a JPEG/PNG data URL pdfmake can embed. */
-async function imageData(url, maxSide = 700) {
+/** Fetch an image and return a data URL; optionally centre-crop to an aspect ratio (w/h). */
+async function imageData(url, { maxSide = 1400, aspect = null, quality = 0.85 } = {}) {
+  if (!url) return null;
   try {
     const r = await fetch(url, { mode: 'cors' });
     if (!r.ok) return null;
-    const bmp = await createImageBitmap(await r.blob());
-    const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    const blob = await r.blob();
+    const bmp = await createImageBitmap(blob);
+    let sx = 0, sy = 0, sw = bmp.width, sh = bmp.height;
+    if (aspect) {
+      if (sw / sh > aspect) { const nw = sh * aspect; sx = (sw - nw) / 2; sw = nw; } else { const nh = sw / aspect; sy = (sh - nh) / 2; sh = nh; }
+    }
+    const k = Math.min(1, maxSide / Math.max(sw, sh));
     const c = document.createElement('canvas');
-    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.82);
+    c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+    const g = c.getContext('2d');
+    const png = /png/.test(blob.type) && !aspect;
+    if (!png) { g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); }
+    g.drawImage(bmp, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    return png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', quality);
   } catch (e) { return null; }
 }
 
-function heading(text) {
-  return { stack: [
-    MALAYALAM.test(text) ? textImage(text, CONTENT_W, { size: 15, bold: true, color: C.deep, margin: [0, 0, 0, 2] }) : { text, fontSize: 15, bold: true, color: C.deep },
-    { canvas: [{ type: 'rect', x: 0, y: 0, w: 36, h: 2.5, color: C.gold }], margin: [0, 3, 0, 10] }
-  ], margin: [0, 18, 0, 0] };
+/* ---------- building blocks ---------- */
+const pageBreak = (node) => ({ ...node, pageBreak: 'before' });
+
+/** Big banner: the "SUNDAY" / "Pray" picture headers of past issues, done as type on a dark band. */
+function banner(word, sub) {
+  return {
+    table: { widths: ['*'], body: [[{
+      fillColor: C.dark, margin: [0, 14, 0, 12], alignment: 'center', stack: [
+        { text: word, font: 'Playfair', bold: true, fontSize: 54, color: C.tan, characterSpacing: 4, lineHeight: 0.95 },
+        sub ? { text: sub.toUpperCase(), fontSize: 8.5, color: '#e9dcc6', characterSpacing: 2.5, margin: [0, 4, 0, 0] } : null
+      ].filter(Boolean)
+    }]] },
+    layout: 'noBorders', margin: [0, 0, 0, 0]
+  };
 }
-const linkLine = (url, label = 'More details') => url ? { text: [{ text: `${label}: `, color: C.muted }, { text: url.replace(/^https?:\/\//, '').replace(/\/$/, ''), link: url, color: C.link, decoration: 'underline' }], fontSize: 9, margin: [0, 0, 0, 4] } : null;
+function title(text, { size = 22, underline = false, margin = [0, 6, 0, 12] } = {}) {
+  if (MALAYALAM.test(text)) return textImage(text, CONTENT_W, { size: size * 0.8, bold: true, align: 'center', margin });
+  return { text, font: 'Playfair', bold: true, fontSize: size, alignment: 'center', decoration: underline ? 'underline' : undefined, margin, color: C.ink };
+}
+/** Bordered table with the tan header row used in the past issues. */
+function boxTable(headers, widths, rows) {
+  return {
+    table: {
+      headerRows: 1, widths, dontBreakRows: true,
+      body: [
+        headers.map((h) => ({ text: h, bold: true, fontSize: 8.5, fillColor: C.tan, alignment: 'center', margin: [2, 7, 2, 7], characterSpacing: 0.4 })),
+        ...rows.map((r) => r.map((cell) => ({ fillColor: C.white, alignment: 'center', margin: [4, 7, 4, 7], fontSize: 9.5, lineHeight: 1.2, ...(typeof cell === 'string' ? { text: cell } : cell) })))
+      ]
+    },
+    layout: { hLineWidth: () => 0.8, vLineWidth: () => 0.8, hLineColor: () => C.rule, vLineColor: () => C.rule, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 }
+  };
+}
+/** Rounded cream boxes (birthdays / anniversaries), `cols` per row. */
+function boxGrid(items, cols) {
+  const gap = 14, w = (CONTENT_W - gap * (cols - 1)) / cols;
+  const charsPerLine = cols === 3 ? 30 : 48;
+  const lineCount = (it) => 1 + it.names.reduce((n, nm) => n + Math.max(1, Math.ceil(nm.length / charsPerLine)), 0);
+  const rows = [];
+  for (let i = 0; i < items.length; i += cols) rows.push(items.slice(i, i + cols));
+  return rows.map((row) => {
+    const h = Math.max(cols === 3 ? 74 : 54, 18 + Math.max(...row.map(lineCount)) * 12.6);
+    return {
+      columns: row.map((it) => ({
+        width: w,
+        stack: [
+          { canvas: [{ type: 'rect', x: 0, y: 0, w, h, r: 10, color: C.cream, lineColor: C.boxLine, lineWidth: 1 }] },
+          { margin: [6, -h, 6, 0], table: { widths: [w - 12], heights: [h], body: [[{ alignment: 'center', margin: [0, 9, 0, 6], stack: [
+            { text: String(it.day), bold: true, fontSize: 9.5, margin: [0, 0, 0, 3] },
+            ...it.names.map((nm) => MALAYALAM.test(nm) ? textImage(nm, w - 16, { size: 9, bold: true, align: 'center', margin: [0, 0, 0, 1] }) : { text: nm, bold: true, fontSize: 9, lineHeight: 1.15 })
+          ] }]] }, layout: 'noBorders' }
+        ]
+      })).concat(row.length < cols ? Array(cols - row.length).fill({ width: w, text: '' }) : []),
+      columnGap: gap, margin: [0, 0, 0, 12], unbreakable: true
+    };
+  });
+}
 
 /**
- * nl: { title, content }   church: { name, address, phone, email, website, livestream, vicar:{name,title,phone,email}, worship_time }
- * content: { message_heading, message, signoff, sundays:[{label, lang, time, note}], events:[…], announcements:[…],
- *            sections:[{heading, body}], include_flyers }
+ * nl: { title, content }   church: { name, address, phone, email, website, livestream, vicar }
+ * content: see nlCollect() in admin.js
  */
 export async function buildNewsletterPdf(nl, church) {
   const pdfMake = await loadPdfMake();
   const c = nl.content || {};
-  const flyers = c.include_flyers !== false;
+  const issue = String(nl.title || '').toUpperCase();
+  const [logo, cover] = await Promise.all([
+    imageData(ASSETS + 'logo.png', { maxSide: 200 }),
+    imageData(c.cover_url || ASSETS + 'church.jpg', { aspect: CONTENT_W / 180, maxSide: 1600 })
+  ]);
   const body = [];
 
-  // ---------- Masthead ----------
-  const titleNode = MALAYALAM.test(nl.title) ? textImage(nl.title, 330, { size: 26, bold: true, color: '#ffffff', margin: [0, 2, 0, 2] }) : { text: nl.title, fontSize: 28, bold: true, color: '#ffffff', margin: [0, 2, 0, 2] };
+  // ---------- Cover + letter ----------
   body.push({
-    table: { widths: ['*'], body: [[{
-      fillColor: C.deep, margin: [22, 20, 22, 18],
-      columns: [
-        { width: '*', stack: [
-          { text: 'PARISH NEWSLETTER', fontSize: 8.5, bold: true, color: C.goldSoft, characterSpacing: 2 },
-          titleNode,
-          { text: church.name, fontSize: 12, color: '#dbe4ee' }
-        ] },
-        { width: 170, alignment: 'right', fontSize: 8.5, color: '#dbe4ee', lineHeight: 1.25, stack: [
-          { text: 'SUNDAY WORSHIP', bold: true, color: C.goldSoft, characterSpacing: 1.5, fontSize: 8 },
-          { text: church.worship_time || '10:00 AM', fontSize: 13, bold: true, color: '#ffffff', margin: [0, 1, 0, 6] },
-          ...(church.address || '').split(/,\s*(?=[^,]+,\s*[A-Z]{2}\b)|\n/).map((l) => ({ text: l })),
-          church.phone ? { text: church.phone } : null
-        ].filter(Boolean) }
-      ]
-    }]] },
-    layout: 'noBorders'
+    margin: [0, 2, 0, 6], alignment: 'center',
+    columns: [
+      { width: '*', text: '' },
+      { width: 'auto', text: '»', font: 'Playfair', bold: true, fontSize: 26, margin: [0, -4, 6, 0] },
+      { width: 'auto', table: { body: [[{ text: 'MONTHLY', font: 'Playfair', fontSize: 11, color: '#f3e6cf', fillColor: C.brown, margin: [8, 2, 8, 1], characterSpacing: 1 }]] }, layout: 'noBorders', margin: [0, 4, 0, 0] },
+      { width: 'auto', text: '«', font: 'Playfair', bold: true, fontSize: 26, margin: [6, -4, 0, 0] },
+      { width: '*', text: '' }
+    ]
   });
-  body.push({ canvas: [{ type: 'rect', x: 0, y: 0, w: CONTENT_W, h: 4, color: C.gold }], margin: [0, 0, 0, 4] });
-
-  // ---------- Message ----------
+  body.push({ text: 'NEWSLETTER', font: 'Playfair', fontSize: 30, alignment: 'center', characterSpacing: 1, margin: [0, 0, 0, 10] });
+  if (cover) body.push({ image: cover, width: CONTENT_W, height: 180, margin: [0, 0, 0, 14] });
+  if (c.message_heading) body.push(title(c.message_heading, { size: 15, margin: [0, 0, 0, 8] }));
   if (c.message && c.message.trim()) {
-    const inner = CONTENT_W - 40;
-    body.push(heading(c.message_heading || 'From the Vicar’s desk'));
-    body.push({ table: { widths: ['*'], body: [[{ fillColor: C.tint, margin: [18, 14, 18, 10], stack: [
-      ...paraBlock(c.message, inner, { size: 11, lineHeight: 1.4, margin: [0, 0, 0, 8] }),
-      c.signoff ? para(c.signoff, inner, { size: 10.5, bold: true, color: C.deep, margin: [0, 2, 0, 4] }) : null
-    ].filter(Boolean) }]] }, layout: 'noBorders' });
+    body.push(...paraBlock(c.message, CONTENT_W, { size: 10.5, lineHeight: 1.32, align: 'justify', margin: [0, 0, 0, 9] }));
+  }
+  if (c.signoff && c.signoff.trim()) {
+    body.push({ margin: [0, 6, 0, 0], stack: c.signoff.split('\n').map((l) => para(l.trim() || ' ', CONTENT_W, { size: 10.5, margin: [0, 0, 0, 1] })) });
   }
 
-  // ---------- Sundays ----------
-  if (c.sundays && c.sundays.length) {
-    body.push(heading('Sunday worship this month'));
-    body.push({
-      table: { headerRows: 1, widths: [96, 128, '*'], body: [
-        ['Sunday', 'Service', 'Notes'].map((h) => ({ text: h, bold: true, fontSize: 9, color: C.muted, margin: [0, 2, 0, 2] })),
-        ...c.sundays.map((s) => [
-          { text: s.label, fontSize: 10, bold: true, margin: [0, 3, 0, 3] },
-          { text: s.lang === 'No service' ? 'No service' : `${s.lang} · ${s.time}`, fontSize: 10, margin: [0, 3, 0, 3], color: s.lang === 'No service' ? '#8a2b2b' : C.ink },
-          { text: s.note || '', fontSize: 9.5, color: C.muted, margin: [0, 3, 0, 3] }
-        ])
-      ] },
-      layout: { hLineWidth: (i) => (i === 1 ? 1 : 0.5), vLineWidth: () => 0, hLineColor: () => C.line, paddingLeft: () => 4, paddingRight: () => 4 }
+  // ---------- SUNDAY ----------
+  const sundays = c.sundays || [];
+  if (sundays.length) {
+    body.push(pageBreak(banner('SUNDAY', 'Worship schedule & lectionary')));
+    const rows = sundays.map((s) => {
+      const worship = s.lang === 'No service'
+        ? [{ text: 'NO SERVICE', bold: true }, s.special ? `(${s.special})` : ''].filter(Boolean)
+        : [{ text: String(s.service || 'Holy Communion').toUpperCase(), bold: false }, `(${s.lang})`, `${s.time} ${s.date_long || s.label}`, s.special ? `(${s.special})` : ''].filter(Boolean);
+      const lect = [s.lesson1 && `LESSON 1: ${s.lesson1}`, s.lesson2 && `LESSON 2: ${s.lesson2}`, s.epistle && `EPISTLE: ${s.epistle}`, s.gospel && `GOSPEL: ${s.gospel}`].filter(Boolean);
+      return [
+        { stack: worship.map((t) => (typeof t === 'string' ? { text: t } : t)) },
+        { stack: lect.length ? lect.map((t) => ({ text: t })) : [{ text: '—', color: C.muted }] },
+        MALAYALAM.test(s.support || '') ? textImage(s.support, 100, { size: 9, align: 'center', margin: [0, 0, 0, 0] }) : { text: s.support || '' }
+      ];
     });
+    body.push(boxTable(['WORSHIP SCHEDULE', 'LECTIONARY', 'SERVICE\nSUPPORT'], [168, '*', 108], rows));
+    if (c.sunday_note) body.push({ margin: [0, 10, 0, 0], table: { widths: ['*'], body: [[{ fillColor: C.dark, color: '#f3e6cf', fontSize: 9.5, alignment: 'center', margin: [10, 7, 10, 7], stack: [{ text: 'Note:', bold: true, margin: [0, 0, 0, 2] }, ...paraBlock(c.sunday_note, CONTENT_W - 30, { size: 9.5, color: '#f3e6cf', align: 'center', margin: [0, 0, 0, 2], links: false })] }]] }, layout: 'noBorders' });
   }
 
-  // ---------- Events ----------
+  // ---------- Calendar (organization meetings & events) ----------
   const evs = c.events || [];
   if (evs.length) {
-    body.push(heading('Upcoming events'));
-    for (const ev of evs) {
-      const img = flyers && ev.flyer_url ? await imageData(ev.flyer_url) : null;
-      const textW = CONTENT_W - 52 - (img ? 104 : 0);
-      const p = parts(ev.starts_at);
-      body.push({
-        unbreakable: !(ev.description && ev.description.length > 700),
-        margin: [0, 0, 0, 12],
-        columns: [
-          { width: 44, table: { widths: [44], body: [[{ fillColor: C.primary, alignment: 'center', margin: [0, 5, 0, 5], stack: [
-            { text: p.mon, fontSize: 8, bold: true, color: C.goldSoft, characterSpacing: 1 },
-            { text: p.day, fontSize: 18, bold: true, color: '#ffffff', lineHeight: 1 },
-            { text: p.wk, fontSize: 7.5, color: '#dbe4ee' }
-          ] }]] }, layout: 'noBorders' },
-          { width: '*', margin: [8, 0, 0, 0], stack: [
-            para(ev.title, textW, { size: 12, bold: true, color: C.ink, margin: [0, 0, 0, 2] }),
-            { text: [ev.when || eventWhen(ev), ev.location ? ` · ${ev.location}` : ''].join(''), fontSize: 9, color: C.muted, margin: [0, 0, 0, 4] },
-            ...paraBlock(ev.description, textW, { size: 10, margin: [0, 0, 0, 4] }),
-            linkLine(ev.link_url)
-          ].filter(Boolean) },
-          img ? { width: 96, margin: [8, 0, 0, 0], image: img, fit: [96, 128] } : null
-        ].filter(Boolean),
-        columnGap: 0
-      });
-    }
+    body.push(pageBreak(banner(c.calendar_word || 'CALENDAR', 'Meetings, fellowships & events')));
+    body.push(boxTable(['ORGANIZATION /\nMEETING', 'TIMING', 'VENUE'], [150, 170, '*'], evs.map((ev) => [
+      { stack: [para(ev.title, 140, { size: 9.5, bold: false, align: 'center', margin: [0, 0, 0, 0], links: false }),
+        ev.description ? para(ev.description.length > 160 ? ev.description.slice(0, 157).trim() + '…' : ev.description, 140, { size: 8, italics: true, color: C.muted, align: 'center', margin: [0, 3, 0, 0] }) : null].filter(Boolean) },
+      { text: timing(ev) },
+      { stack: [para(ev.location || '', 170, { size: 9.5, align: 'center', margin: [0, 0, 0, 0], links: false }), ev.link_url ? { text: 'Details & registration', link: ev.link_url, color: C.link, decoration: 'underline', fontSize: 8, margin: [0, 3, 0, 0] } : null].filter(Boolean) }
+    ])));
   }
 
-  // ---------- Announcements ----------
+  // ---------- A Few Notes To Remember (announcements + standing notes) ----------
   const anns = c.announcements || [];
-  if (anns.length) {
-    body.push(heading('Announcements'));
-    for (const a of anns) {
-      const img = flyers && a.flyer_url ? await imageData(a.flyer_url) : null;
-      const textW = CONTENT_W - 14 - (img ? 104 : 0);
-      body.push({
-        unbreakable: !(a.body && a.body.length > 700),
-        margin: [0, 0, 0, 12],
-        columns: [
-          { width: 14, canvas: [{ type: 'rect', x: 0, y: 4, w: 6, h: 6, color: C.gold }] },
-          { width: '*', stack: [
-            para(a.title, textW, { size: 12, bold: true, margin: [0, 0, 0, 3] }),
-            ...paraBlock(a.body, textW, { size: 10, margin: [0, 0, 0, 4] }),
-            linkLine(a.link_url)
-          ].filter(Boolean) },
-          img ? { width: 96, margin: [8, 0, 0, 0], image: img, fit: [96, 128] } : null
-        ].filter(Boolean)
-      });
+  const secs = (c.sections || []).filter((s) => s.heading || s.body);
+  if (anns.length || secs.length) {
+    const notes = [title('A Few Notes To Remember', { size: 17, underline: true, margin: [0, 0, 0, 10] })];
+    {
+      for (const a of anns) {
+        notes.push({ unbreakable: true, margin: [24, 0, 24, 10], stack: [
+          para(a.title, CONTENT_W - 48, { size: 11.5, bold: true, align: 'center', margin: [0, 0, 0, 3], links: false }),
+          ...paraBlock(a.body, CONTENT_W - 48, { size: 10, align: 'center', margin: [0, 0, 0, 3] }),
+          a.link_url ? { text: [{ text: 'More details: ', color: C.muted }, { text: a.link_url.replace(/^https?:\/\//, '').replace(/\/$/, ''), link: a.link_url, color: C.link }], fontSize: 9, alignment: 'center' } : null
+        ].filter(Boolean) });
+      }
+    }
+    for (const s of secs) {
+      notes.push({ unbreakable: (s.body || '').length < 900, margin: [0, 8, 0, 0], stack: [
+        s.heading ? title(s.heading, { size: 15, underline: true, margin: [0, 0, 0, 8] }) : null,
+        ...String(s.body || '').replace(/\r/g, '').split('\n').map((l) => para(l.trim() || ' ', CONTENT_W - 40, { size: 10, align: 'center', margin: [20, 0, 20, 2] }))
+      ].filter(Boolean) });
+    }
+    notes[0] = pageBreak(notes[0]);
+    body.push(...notes);
+  }
+
+  // ---------- Birthdays & anniversaries ----------
+  const month = c.people_month || String(nl.title || '').replace(/\s*\d{4}\s*$/, '');
+  if (c.birthdays && c.birthdays.length) {
+    body.push(pageBreak(title(`${month} Birthdays`, { size: 24, margin: [0, 0, 0, 14] })));
+    body.push(...boxGrid(c.birthdays, 3));
+  }
+  if (c.anniversaries && c.anniversaries.length) {
+    const t = title(`${month} Anniversaries`, { size: 24, margin: [0, c.birthdays && c.birthdays.length ? 0 : 0, 0, 14] });
+    body.push(pageBreak(t));
+    body.push(...boxGrid(c.anniversaries, 2));
+  }
+
+  // ---------- Flyer pages ----------
+  if (c.include_flyers !== false) {
+    const flyers = [...evs, ...anns].filter((x) => x.flyer_url);
+    if (flyers.length) {
+      const imgs = (await Promise.all(flyers.map((f) => imageData(f.flyer_url, { maxSide: 1500 })))).filter(Boolean);
+      const w = (CONTENT_W - 18) / 2;
+      for (let i = 0; i < imgs.length; i += 4) {
+        const page = imgs.slice(i, i + 4);
+        const rows = [];
+        for (let j = 0; j < page.length; j += 2) rows.push({ columns: page.slice(j, j + 2).map((im) => ({ width: w, image: im, fit: [w, 300], alignment: 'center' })).concat(page.length - j === 1 ? [{ width: w, text: '' }] : []), columnGap: 18, margin: [0, 0, 0, 16] });
+        body.push(pageBreak({ stack: [title(i === 0 ? 'Upcoming Events' : 'Upcoming Events (continued)', { size: 20, margin: [0, 0, 0, 12] }), ...rows] }));
+      }
     }
   }
 
-  // ---------- Extra sections ----------
-  for (const s of (c.sections || []).filter((x) => x.heading || x.body)) {
-    if (s.heading) body.push(heading(s.heading));
-    body.push(...paraBlock(s.body, CONTENT_W, { size: 10.5, margin: [0, 0, 0, 6] }));
+  // ---------- Quick Glimpse ----------
+  const photos = c.glimpse_photos || [];
+  if (photos.length) {
+    const w = (CONTENT_W - 30) / 2, h = Math.round(w * 0.72);
+    const imgs = (await Promise.all(photos.map((p) => imageData(p.url, { aspect: w / h, maxSide: 900, quality: 0.8 })))).filter(Boolean);
+    const rows = [];
+    for (let j = 0; j < imgs.length; j += 2) rows.push({ columns: imgs.slice(j, j + 2).map((im) => ({ width: w, image: im, fit: [w, h] })).concat(imgs.length - j === 1 ? [{ width: w, text: '' }] : []), columnGap: 30, margin: [0, 0, 0, 16], unbreakable: true });
+    body.push(pageBreak(title(c.glimpse_title || 'Quick Glimpse', { size: 22, margin: [0, 0, 0, 4] })));
+    if (c.glimpse_subtitle) body.push(para(c.glimpse_subtitle.toUpperCase(), CONTENT_W, { size: 11, bold: true, align: 'center', margin: [0, 0, 0, 14], links: false }));
+    else body.push({ text: '', margin: [0, 0, 0, 10] });
+    body.push(...rows);
   }
-
-  // ---------- Contact ----------
-  const v = church.vicar || {};
-  const contactLine = (label, value, link) => value ? { text: [{ text: `${label}  `, bold: true, color: C.deep }, link ? { text: value, link, color: C.link } : { text: value }], fontSize: 9.5, margin: [0, 0, 0, 3] } : null;
-  body.push({ margin: [0, 22, 0, 0], unbreakable: true, table: { widths: ['*', '*'], body: [[
-    { fillColor: C.tint, margin: [16, 12, 8, 10], stack: [
-      { text: 'Stay in touch', fontSize: 12, bold: true, color: C.deep, margin: [0, 0, 0, 6] },
-      v.name ? { text: `${v.name}${v.title ? `, ${v.title}` : ''}`, fontSize: 9.5, bold: true, margin: [0, 0, 0, 3] } : null,
-      contactLine('Phone', v.phone, v.phone ? `tel:${v.phone.replace(/[^\d+]/g, '')}` : null),
-      contactLine('Email', v.email, v.email ? `mailto:${v.email}` : null)
-    ].filter(Boolean) },
-    { fillColor: C.tint, margin: [8, 12, 16, 10], stack: [
-      { text: ' ', fontSize: 12, margin: [0, 0, 0, 6] },
-      contactLine('Church office', church.email, church.email ? `mailto:${church.email}` : null),
-      contactLine('Website', (church.website || '').replace(/^https?:\/\//, '').replace(/\/$/, ''), church.website),
-      church.livestream ? contactLine('Watch live', 'YouTube livestream', church.livestream) : null
-    ].filter(Boolean) }
-  ]] }, layout: 'noBorders' });
 
   const dd = {
     pageSize: 'LETTER',
-    pageMargins: [MARGIN, 44, MARGIN, 56],
+    pageMargins: [MARGIN, 78, MARGIN, 40],
     info: { title: `${church.name} — ${nl.title} newsletter`, author: church.name, subject: 'Parish newsletter' },
-    defaultStyle: { font: 'Roboto', fontSize: 10.5, color: C.ink },
-    content: body,
-    footer: (page, pages) => ({
-      margin: [MARGIN, 18, MARGIN, 0],
-      columns: [
-        { text: `${church.name} · ${nl.title}`, fontSize: 8, color: C.muted },
-        { text: `Page ${page} of ${pages}`, fontSize: 8, color: C.muted, alignment: 'right' }
+    defaultStyle: { font: 'Tinos', fontSize: 10.5, color: C.ink },
+    background: () => ({ canvas: [{ type: 'rect', x: 0, y: 0, w: PAGE_W, h: PAGE_H, linearGradient: [C.paper, C.paper2] }] }),
+    header: () => ({
+      margin: [MARGIN, 24, MARGIN, 0],
+      stack: [
+        { columns: [
+          logo ? { width: 30, image: logo, fit: [30, 30] } : { width: 0, text: '' },
+          { width: '*', text: (church.name || 'Mar Thoma Church, Atlanta').toUpperCase(), fontSize: 11.5, characterSpacing: 0.6, margin: [7, 10, 0, 0] },
+          { width: 'auto', text: issue, fontSize: 11.5, characterSpacing: 0.6, margin: [0, 10, 0, 0] }
+        ] },
+        { canvas: [
+          { type: 'line', x1: 0, y1: 5, x2: CONTENT_W, y2: 5, lineWidth: 1.2, lineColor: C.rule },
+          { type: 'line', x1: 0, y1: 8, x2: CONTENT_W, y2: 8, lineWidth: 0.5, lineColor: C.rule }
+        ] }
       ]
-    })
+    }),
+    footer: (page, pages) => (pages > 1 ? { text: `${page}`, alignment: 'center', fontSize: 8, color: C.muted, margin: [0, 14, 0, 0] } : null),
+    content: body
   };
   return new Promise((resolve, reject) => {
     try { pdfMake.createPdf(dd).getBlob((b) => resolve(b)); } catch (e) { reject(e); }

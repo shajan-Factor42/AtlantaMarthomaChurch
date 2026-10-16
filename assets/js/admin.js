@@ -1258,7 +1258,12 @@ BIND.worship = function () {
 --------------------------------------------------------------------- */
 const NL_CHURCH = (window.MTCA && window.MTCA.church) || {};
 const NL_SITE_BASE = new URL('../', location.href).href.replace(/\/$/, '');
-const NL_SECTION_IDEAS = ['Birthdays & anniversaries', 'Prayer requests', 'Sunday School', 'Yuvajana Sakhyam', 'Sevika Sangham', 'Thank you'];
+const NL_SECTION_IDEAS = ['Prayer requests', 'Sunday School', 'Yuvajana Sakhyam', 'Sevika Sangham', 'Youth Fellowship', 'Thank you'];
+// The standing notes from the past newsletters; edit them in any issue and the next one starts from there.
+const NL_STANDING_NOTES = [
+  { heading: '', body: 'For donations & subscriptions make all checks payable to: Mar Thoma Church, Atlanta or MTCA, Church\nEmail: marthomachurchatlanta@gmail.com\nWebsite: https://mtcatlanta.org\nZelle to mtcatrustees@gmail.com' },
+  { heading: 'Facility Reservation', body: 'Facility reservation for Organizations and Prayer group activities, please reach out to\nTrustee-Finance: Mr. Santhosh K. Abraham : Email: Skabr22@gmail.com\nTrustee-Accounts: Dr. Robin Thomas : Email: robthomas19@gmail.com\nParish Secretary: Ms. Liz Mathew: Email: liz.ralex@gmail.com\n\nFacility reservation for Baptisms, Marriages and other Sacraments, please reach out to the Vicar Rev. Jacob Thomas at revjacobthomasanikad@gmail.com.' }
+];
 const ymd = (d) => d.toLocaleDateString('en-CA');
 function monthBounds(offset = 1) {
   const n = new Date(), s = new Date(n.getFullYear(), n.getMonth() + offset, 1), e = new Date(s.getFullYear(), s.getMonth() + 1, 0);
@@ -1374,7 +1379,11 @@ BIND.newsletters = function () {
       <div class="row-2"><label>Covers from<input type="date" name="period_start" value="${s}" required></label><label>to<input type="date" name="period_end" value="${e}" required></label></div>`,
     async (v) => {
       if (v.period_end < v.period_start) throw new Error('The end date is before the start date.');
-      const content = { message_heading: 'From the Vicar’s desk', include_sundays: true, include_flyers: true, attach_pdf: true };
+      // Carry the standing notes (donations, facility reservation…) over from the last issue
+      const prev = (await sb.from('newsletters').select('content').eq('source', 'template').order('created_at', { ascending: false }).limit(1)).data || [];
+      const lastSecs = prev[0] && prev[0].content && prev[0].content.sections;
+      const content = { message_heading: '', include_sundays: true, include_flyers: true, include_glimpse: true, include_birthdays: true, include_anniversaries: true, attach_pdf: true,
+        sections: lastSecs && lastSecs.length ? lastSecs : NL_STANDING_NOTES };
       const row = ok(await sb.from('newsletters').insert({ title: v.title.trim(), period_start: v.period_start, period_end: v.period_end, source: 'template', content, created_by: me.id }).select('id').single());
       ctx.nlId = row.id; await show('newsletters');
     }, { saveLabel: 'Continue' });
@@ -1487,56 +1496,135 @@ async function nlEditorView() {
   let body = '';
   if (nl.source === 'template') {
     const s = nl.period_start, e = nl.period_end;
-    const [er, ar, wr, ws] = await Promise.all([
+    const glimpseFrom = (() => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() - 45); return ymd(d); })();
+    const [er, ar, wr, ws, lr, mr, pr] = await Promise.all([
       sb.from('events').select('*').eq('published', true).gte('starts_at', new Date(s + 'T00:00:00').toISOString()).lte('starts_at', new Date(e + 'T23:59:59').toISOString()).order('starts_at'),
       sb.from('member_announcements').select('*').lte('published_on', e).or(`expires_on.is.null,expires_on.gte.${s}`).order('pinned', { ascending: false }).order('published_on', { ascending: false }),
       sb.from('portal_settings').select('value').eq('key', 'worship').maybeSingle(),
-      sb.from('worship_services').select('*').gte('day', s).lte('day', e)
+      sb.from('worship_services').select('*').gte('day', s).lte('day', e),
+      sb.from('ref_lectionary').select('day, title, lessons, epistle_gospel').gte('day', s).lte('day', e),
+      sb.from('members').select('id, first_name, last_name, date_of_birth, wedding_date, family_id, relationship, family:families(status)'),
+      sb.from('photo_submissions').select('id, storage_path, caption, event_name, created_at').eq('status', 'approved').gte('created_at', new Date(glimpseFrom + 'T00:00:00').toISOString()).order('created_at', { ascending: false }).limit(60)
     ]);
     const pattern = { ...WORSHIP_DEFAULT, ...((wr.data && wr.data.value) || {}) };
     pattern.schedule = { ...WORSHIP_DEFAULT.schedule, ...(pattern.schedule || {}) };
     const changes = Object.fromEntries((ok(ws) || []).map((x) => [x.day, x]));
+    const lect = Object.fromEntries(((lr.data) || []).map((x) => [x.day, x]));
+    const extra = c.sunday_extra || {};
     const sundays = [];
     for (let d = new Date(s + 'T12:00:00'); ymd(d) <= e; d.setDate(d.getDate() + 1)) {
       if (d.getDay() !== 0) continue;
-      const info = sundayInfo(ymd(d), pattern, changes[ymd(d)]);
-      sundays.push({ label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), lang: info.lang, time: fmtTime(info.time), note: [info.note, info.celebrant].filter(Boolean).join(' · ') });
+      const day = ymd(d), info = sundayInfo(day, pattern, changes[day]), L = lect[day] || {};
+      const [lesson1, lesson2] = String(L.lessons || '').split(';').map((x) => x.trim());
+      const [epistle, gospel] = String(L.epistle_gospel || '').split(';').map((x) => x.trim());
+      const lectDay = lectionaryEnglish(L.title).split(' · ')[0] || '';
+      const x = extra[day] || {};
+      sundays.push({
+        day, label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        date_long: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        lang: info.lang === 'Special' ? 'Special service' : info.lang, time: fmtTime(info.time),
+        lesson1: lesson1 || '', lesson2: lesson2 || '', epistle: epistle || '', gospel: gospel || '',
+        default_special: info.note || lectDay, lect_title: lectDay,
+        service: x.service ?? 'Holy Communion', special: x.special ?? (info.note || lectDay), support: x.support ?? ''
+      });
     }
+    // Birthdays & anniversaries from the register (editable text)
+    const inPeriod = (md) => { const months = new Set(); for (let d = new Date(s + 'T12:00:00'); ymd(d) <= e; d.setDate(d.getDate() + 1)) months.add(ymd(d).slice(5)); return months.has(md); };
+    const active = (ok(mr) || []).filter((m) => !m.family || m.family.status !== 'inactive');
+    const byDay = (list) => { const g = {}; list.forEach(([day, name]) => (g[day] ||= []).push(name)); return Object.keys(g).map(Number).sort((a, b) => a - b).map((d) => `${d}: ${g[d].join('; ')}`).join('\n'); };
+    const bdays = active.filter((m) => m.date_of_birth && inPeriod(m.date_of_birth.slice(5))).sort((a, b) => a.date_of_birth.slice(5).localeCompare(b.date_of_birth.slice(5)))
+      .map((m) => [Number(m.date_of_birth.slice(8, 10)), `${m.first_name} ${m.last_name}`]);
+    const order = { Head: 0, Spouse: 1 };
+    const couples = {};
+    active.filter((m) => m.wedding_date && inPeriod(m.wedding_date.slice(5))).forEach((m) => { (couples[`${m.family_id}|${m.wedding_date}`] ||= []).push(m); });
+    const annis = Object.values(couples).map((ms) => { ms.sort((a, b) => (order[a.relationship] ?? 2) - (order[b.relationship] ?? 2)); return [Number(ms[0].wedding_date.slice(8, 10)), ms.map((m) => `${m.first_name} ${m.last_name}`).join(' & ')]; });
+    ctx.nlRegister = { birthdays: byDay(bdays), anniversaries: byDay(annis), bcount: bdays.length, acount: annis.length };
+    // Photos for "Quick Glimpse"
+    const photos = ok(pr) || [];
+    ctx.nlPhotoUrls = {};
+    if (photos.length) {
+      const signed = ok(await sb.storage.from('member-photos').createSignedUrls(photos.map((p) => p.storage_path), 3600));
+      signed.forEach((x, i) => { if (x.signedUrl) ctx.nlPhotoUrls[photos[i].storage_path] = x.signedUrl; });
+    }
+    const prevMonth = new Date(s + 'T12:00:00'); prevMonth.setMonth(prevMonth.getMonth() - 1);
+    const glimpseDefault = `Quick Glimpse of ${prevMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
     ctx.nlCand = { events: ok(er), anns: ok(ar), sundays };
-    // Keep sent snapshots visible even if the event was later removed
     const evIds = c.event_ids || ctx.nlCand.events.filter((x) => !x.members_only).map((x) => x.id);
     const anIds = c.announcement_ids || ctx.nlCand.anns.map((x) => x.id);
+    const picked = new Set(c.glimpse_paths || []);
     const evList = ctx.nlCand.events.length ? ctx.nlCand.events.map((x) => `<label class="nl-pick"><input type="checkbox" name="ev" value="${x.id}" ${evIds.includes(x.id) ? 'checked' : ''}>
         <span><strong>${esc(x.title)}</strong>${x.members_only ? ' <span class="badge">Members only</span>' : ''}<br><small class="muted">${esc(eventWhen(x))}${x.location ? ' · ' + esc(x.location) : ''}${x.flyer_url ? ' · has flyer' : ''}</small></span></label>`).join('')
       : `<p class="empty">No published events between ${date(s)} and ${date(e)}. Add them under <a href="#events" data-goto="events">Events</a>, then come back.</p>`;
     const anList = ctx.nlCand.anns.length ? ctx.nlCand.anns.map((x) => `<label class="nl-pick"><input type="checkbox" name="an" value="${x.id}" ${anIds.includes(x.id) ? 'checked' : ''}>
         <span><strong>${esc(x.title)}</strong> <span class="pill pill--${x.audience}">${esc(AUDIENCE[x.audience] || x.audience)}</span><br><small class="muted clamp">${esc(x.body)}</small></span></label>`).join('')
       : `<p class="empty">No announcements showing in these dates. Add them under <a href="#announcements" data-goto="announcements">Announcements</a>.</p>`;
+    const sundayRows = sundays.length ? `<div class="table-wrap"><table class="table nl-sundays">
+        <thead><tr><th>Sunday</th><th>Service</th><th>Special day / note</th><th>Service support</th></tr></thead>
+        <tbody>${sundays.map((x) => `<tr data-day="${x.day}">
+          <td class="nowrap"><strong>${esc(x.label)}</strong><br><small class="muted">${esc(x.lang)} · ${esc(x.time)}</small>${x.lesson1 ? `<br><small class="muted" title="${esc([x.lesson1, x.lesson2, x.epistle, x.gospel].join(' · '))}">Lectionary ✓</small>` : '<br><small class="warn">No lectionary</small>'}</td>
+          <td><input name="sun_service" value="${esc(x.service)}" maxlength="60" aria-label="Service for ${esc(x.label)}"></td>
+          <td><input name="sun_special" value="${esc(x.special)}" maxlength="120" aria-label="Special day for ${esc(x.label)}" placeholder="${esc(x.lect_title)}"></td>
+          <td><input name="sun_support" value="${esc(x.support)}" maxlength="80" aria-label="Service support for ${esc(x.label)}" placeholder="e.g. Sevika Sangham"></td>
+        </tr>`).join('')}</tbody></table></div>` : '<p class="empty">No Sundays in these dates.</p>';
+    const photoGrid = photos.length ? `<div class="nl-photos">${photos.filter((p) => ctx.nlPhotoUrls[p.storage_path]).map((p) => `<label class="nl-photo"><input type="checkbox" name="gp" value="${esc(p.storage_path)}" ${picked.has(p.storage_path) ? 'checked' : ''}><img src="${esc(ctx.nlPhotoUrls[p.storage_path])}" alt="${esc(p.caption || p.event_name || 'Photo')}" loading="lazy"><small>${esc(p.event_name || p.caption || date(p.created_at.slice(0, 10)))}</small></label>`).join('')}</div>`
+      : `<p class="empty">No approved photos from the last few weeks. Add some under <a href="#photos" data-goto="photos">Photos</a> (members’ uploads or your own), then come back.</p>`;
     const sections = c.sections && c.sections.length ? c.sections : [];
+    const coverSrc = c.cover_url || new URL('../assets/newsletter/church.jpg', location.href).href;
     body = `
     <section class="pcard">
       <h2>1. What goes in it</h2>
+      <p class="muted small">Laid out like the parish’s monthly newsletters: cover and letter, the SUNDAY lectionary table, the calendar, notes to remember, birthdays and anniversaries, flyer pages and a photo glimpse of last month. Leave anything out by unticking it.</p>
       <form id="nl-form" class="form form--flat">
         <div class="row-3">
           <label>Title<input name="title" value="${esc(nl.title)}" required maxlength="80"></label>
           <label>Covers from<input type="date" name="period_start" value="${esc(s)}" required></label>
           <label>to<input type="date" name="period_end" value="${esc(e)}" required></label>
         </div>
-        <label>Message heading<input name="message_heading" value="${esc(c.message_heading ?? 'From the Vicar’s desk')}" maxlength="80"></label>
-        <label>Message<textarea name="message" rows="8" placeholder="Dear brothers and sisters in Christ, …">${esc(c.message || '')}</textarea><small class="muted">Opens the newsletter and the email. Leave a blank line between paragraphs. Malayalam works too.</small></label>
-        <label>Signed<input name="signoff" value="${esc(c.signoff || '')}" maxlength="120" placeholder="${esc(((window.MTCA && window.MTCA.vicar) || {}).name || 'Rev. …')}, Vicar"></label>
-        <div class="nl-opts">
-          <label class="check"><input type="checkbox" name="include_sundays" ${c.include_sundays !== false ? 'checked' : ''}> Sunday schedule for these dates (${sundays.length} Sundays, from the Worship page)</label>
-          <label class="check"><input type="checkbox" name="include_flyers" ${c.include_flyers !== false ? 'checked' : ''}> Include flyer pictures</label>
-          <label class="check"><input type="checkbox" name="attach_pdf" ${c.attach_pdf !== false ? 'checked' : ''}> Attach the PDF to the email (as well as a link)</label>
+
+        <h3 class="nl-h">Cover & letter</h3>
+        <div class="nl-cover">
+          <img src="${esc(coverSrc)}" alt="Cover photo" id="nl-cover-img">
+          <div>
+            <label>Cover photo<input type="file" name="cover_file" accept="image/jpeg,image/png,image/webp"><small class="muted">A wide photo works best. Leave empty to keep ${c.cover_url ? 'this one' : 'the church photo'}.</small></label>
+            ${c.cover_url ? '<label class="check"><input type="checkbox" name="cover_reset"> Go back to the church photo</label>' : ''}
+          </div>
         </div>
-        <h3 class="nl-h">Events <small class="muted">${ctx.nlCand.events.length} in these dates</small></h3>
+        <label>Letter<textarea name="message" rows="10">${esc(c.message ?? 'Dearly beloved in Christ,\n\n')}</textarea><small class="muted">Opens the newsletter and the email. Leave a blank line between paragraphs. Malayalam works too.</small></label>
+        <label>Signed<textarea name="signoff" rows="3">${esc(c.signoff ?? `Yours in Christ’s service,\n${((window.MTCA && window.MTCA.vicar) || {}).name || 'Rev. …'}\nVicar`)}</textarea></label>
+        <label>Heading above the letter (optional)<input name="message_heading" value="${esc(c.message_heading || '')}" maxlength="80"></label>
+
+        <h3 class="nl-h"><label class="check"><input type="checkbox" name="include_sundays" ${c.include_sundays !== false ? 'checked' : ''}> SUNDAY page</label> <small class="muted">${sundays.length} Sundays · times and languages from the Worship page, readings from the lectionary</small></h3>
+        ${sundayRows}
+        <label>Note under the table (optional)<textarea name="sunday_note" rows="2" placeholder="e.g. Sunday School is on break this month.">${esc(c.sunday_note || '')}</textarea></label>
+
+        <h3 class="nl-h">Calendar <small class="muted">${ctx.nlCand.events.length} events in these dates</small></h3>
         <div class="nl-picks">${evList}</div>
-        <h3 class="nl-h">Announcements <small class="muted">${ctx.nlCand.anns.length} showing in these dates</small></h3>
+
+        <h3 class="nl-h">A Few Notes To Remember <small class="muted">announcements ${ctx.nlCand.anns.length ? `(${ctx.nlCand.anns.length} showing)` : ''}, then the notes below</small></h3>
         <div class="nl-picks">${anList}</div>
-        <h3 class="nl-h">More sections <small class="muted">optional</small></h3>
         <div id="nl-sections">${sections.map(nlSectionHtml).join('')}</div>
         <div class="chip-row"><span class="muted small">Add:</span>${NL_SECTION_IDEAS.map((t) => `<button type="button" class="nl-chip" data-add-sec="${esc(t)}">${esc(t)}</button>`).join('')}<button type="button" class="nl-chip" data-add-sec="">Other…</button></div>
+
+        <h3 class="nl-h">Birthdays & anniversaries <small class="muted">from the parish register — edit freely</small></h3>
+        <p class="muted small">One day per line, names separated by “;”. The newsletter is also posted on the website, so take out anyone who prefers not to be listed.</p>
+        <div class="row-2">
+          <label><span><input type="checkbox" name="include_birthdays" ${c.include_birthdays !== false ? 'checked' : ''}> Birthdays <small class="muted">(${ctx.nlRegister.bcount} in the register)</small></span><textarea name="birthdays" rows="8" placeholder="1: Mathew Varghese; Manu Jacob George&#10;2: Aidan Abraham Cherian">${esc(c.birthdays_text ?? ctx.nlRegister.birthdays)}</textarea></label>
+          <label><span><input type="checkbox" name="include_anniversaries" ${c.include_anniversaries !== false ? 'checked' : ''}> Anniversaries <small class="muted">(${ctx.nlRegister.acount} in the register)</small></span><textarea name="anniversaries" rows="8" placeholder="2: Johnson Yohannan &amp; Mariamma Johnson">${esc(c.anniversaries_text ?? ctx.nlRegister.anniversaries)}</textarea></label>
+        </div>
+        <p><button type="button" class="link-btn" id="nl-refill">Refill both from the register</button></p>
+
+        <h3 class="nl-h"><label class="check"><input type="checkbox" name="include_flyers" ${c.include_flyers !== false ? 'checked' : ''}> Flyer pages</label> <small class="muted">full-size flyers of the chosen events and announcements</small></h3>
+
+        <h3 class="nl-h"><label class="check"><input type="checkbox" name="include_glimpse" ${c.include_glimpse !== false ? 'checked' : ''}> Quick Glimpse</label> <small class="muted">photos from recent weeks</small></h3>
+        <div class="row-2">
+          <label>Page title<input name="glimpse_title" value="${esc(c.glimpse_title || glimpseDefault)}" maxlength="80"></label>
+          <label>Subtitle (optional)<input name="glimpse_subtitle" value="${esc(c.glimpse_subtitle || '')}" maxlength="80" placeholder="e.g. Onam 2026"></label>
+        </div>
+        ${photoGrid}
+
+        <div class="nl-opts">
+          <label class="check"><input type="checkbox" name="attach_pdf" ${c.attach_pdf !== false ? 'checked' : ''}> Attach the PDF to the email (as well as a link)</label>
+        </div>
         <div class="nl-actions">
           <button class="btn btn--outline" type="submit">Save draft</button>
           <button class="btn btn--outline" type="button" id="nl-preview">Preview PDF</button>
@@ -1587,7 +1675,13 @@ async function nlEditorView() {
 
 const nlSectionHtml = (sec = {}) => `<fieldset class="nl-sec">
   <div class="nl-sec__head"><input name="sec_heading" value="${esc(sec.heading || '')}" placeholder="Section heading" maxlength="80" aria-label="Section heading"><button type="button" class="link-btn link-btn--danger" data-sec-del>Remove</button></div>
-  <textarea name="sec_body" rows="4" placeholder="Text for this section" aria-label="Section text">${esc(sec.body || '')}</textarea></fieldset>`;
+  <textarea name="sec_body" rows="${Math.min(14, Math.max(4, String(sec.body || '').split('\n').length + 1))}" placeholder="Text for this section" aria-label="Section text">${esc(sec.body || '')}</textarea></fieldset>`;
+
+/** "1: Name; Name" lines → [{day, names}] */
+const parsePeople = (text) => String(text || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+  const m = l.match(/^(\d{1,2})\s*[:.\-–]\s*(.+)$/);
+  return m ? { day: Number(m[1]), names: m[2].split(';').map((x) => x.trim()).filter(Boolean) } : { day: '', names: [l] };
+}).filter((x) => x.names.length);
 
 /** Read the editor into a content object, with copies of the chosen events/announcements. */
 function nlCollect(form) {
@@ -1598,17 +1692,46 @@ function nlCollect(form) {
   const evIds = $$('input[name=ev]:checked', form).map((i) => i.value);
   const anIds = $$('input[name=an]:checked', form).map((i) => i.value);
   const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] ?? null]));
-  const events = ctx.nlCand.events.filter((x) => evIds.includes(x.id)).map((x) => ({ ...pick(x, ['id', 'title', 'starts_at', 'ends_at', 'all_day', 'location', 'description', 'link_url', 'flyer_url']), flyer_url: x.flyer_url ? mediaUrl(x.flyer_url) : null, when: eventWhen(x) }));
+  const events = ctx.nlCand.events.filter((x) => evIds.includes(x.id)).map((x) => ({ ...pick(x, ['id', 'title', 'starts_at', 'ends_at', 'all_day', 'location', 'description', 'link_url']), flyer_url: x.flyer_url ? mediaUrl(x.flyer_url) : null, when: eventWhen(x) }));
   const announcements = ctx.nlCand.anns.filter((x) => anIds.includes(x.id)).map((x) => ({ ...pick(x, ['id', 'title', 'body', 'link_url']), flyer_url: x.flyer_url ? mediaUrl(x.flyer_url) : null }));
   const heads = $$('[name=sec_heading]', form), bodies = $$('[name=sec_body]', form);
   const sections = heads.map((h, i) => ({ heading: h.value.trim(), body: bodies[i].value.trim() })).filter((x) => x.heading || x.body);
+  const sunday_extra = {};
+  const sundays = ctx.nlCand.sundays.map((x) => {
+    const row = $(`tr[data-day="${x.day}"]`, form);
+    const v = (n) => (row ? $(`[name=${n}]`, row).value.trim() : '');
+    sunday_extra[x.day] = { service: v('sun_service'), special: v('sun_special'), support: v('sun_support') };
+    return { ...x, ...sunday_extra[x.day] };
+  });
+  const glimpse_paths = $$('input[name=gp]:checked', form).map((i) => i.value);
   Object.assign(c, {
     message_heading: form.message_heading.value.trim(), message: form.message.value.trim(), signoff: form.signoff.value.trim(),
     include_sundays: form.include_sundays.checked, include_flyers: form.include_flyers.checked, attach_pdf: form.attach_pdf.checked,
-    event_ids: evIds, announcement_ids: anIds, events, announcements, sections,
-    sundays: form.include_sundays.checked ? ctx.nlCand.sundays : []
+    include_birthdays: form.include_birthdays.checked, include_anniversaries: form.include_anniversaries.checked, include_glimpse: form.include_glimpse.checked,
+    event_ids: evIds, announcement_ids: anIds, events, announcements, sections, sunday_extra,
+    sunday_note: form.sunday_note.value.trim(),
+    sundays: form.include_sundays.checked ? sundays : [],
+    birthdays_text: form.birthdays.value, anniversaries_text: form.anniversaries.value,
+    birthdays: form.include_birthdays.checked ? parsePeople(form.birthdays.value) : [],
+    anniversaries: form.include_anniversaries.checked ? parsePeople(form.anniversaries.value) : [],
+    people_month: new Date(form.period_start.value + 'T12:00:00').toLocaleDateString('en-US', { month: 'long' }),
+    glimpse_title: form.glimpse_title.value.trim(), glimpse_subtitle: form.glimpse_subtitle.value.trim(), glimpse_paths,
+    glimpse_photos: form.include_glimpse.checked ? glimpse_paths.filter((p) => ctx.nlPhotoUrls[p]).map((p) => ({ path: p, url: ctx.nlPhotoUrls[p] })) : []
   });
+  if (form.cover_reset && form.cover_reset.checked) c.cover_url = null;
   return { title: form.title.value.trim(), period_start: form.period_start.value, period_end: form.period_end.value, content: c };
+}
+
+/** Upload a new cover photo (if one was chosen) to the public flyers bucket. */
+async function nlSaveCover(form, d) {
+  const file = form.cover_file && form.cover_file.files[0];
+  if (!file) return;
+  if (!/^image\//.test(file.type)) throw new Error('The cover must be a photo (JPG or PNG).');
+  const img = await prepareImage(file, 2000, 0.85);
+  const path = `newsletter-covers/${Date.now()}-${img.name.replace(/[^\w.\-]+/g, '-').toLowerCase()}`;
+  ok(await sb.storage.from('flyers').upload(path, img, { contentType: img.type || 'image/jpeg', cacheControl: '31536000' }));
+  d.content.cover_url = sb.storage.from('flyers').getPublicUrl(path).data.publicUrl;
+  form.cover_file.value = '';
 }
 
 function bindNlEditor() {
@@ -1621,6 +1744,7 @@ function bindNlEditor() {
   async function save({ quiet = false, rebuilt = false } = {}) {
     const d = nlCollect(form);
     if (!d.title) throw new Error('Give the newsletter a title.');
+    if (nl.source === 'template') await nlSaveCover(form, d);
     if (d.period_end && d.period_end < d.period_start) throw new Error('The end date is before the start date.');
     if (nl.source === 'template') d.content.pdf_stale = rebuilt ? false : !!(nl.pdf_url && (dirty || nl.content.pdf_stale));
     ok(await sb.from('newsletters').update({ ...d, updated_at: new Date().toISOString() }).eq('id', nl.id));
@@ -1631,6 +1755,8 @@ function bindNlEditor() {
   }
 
   if (nl.source === 'template') {
+    $('#nl-refill').onclick = () => { form.birthdays.value = ctx.nlRegister.birthdays; form.anniversaries.value = ctx.nlRegister.anniversaries; dirty = true; form.dispatchEvent(new Event('input')); };
+    form.cover_file.onchange = () => { const f = form.cover_file.files[0]; if (f) $('#nl-cover-img').src = URL.createObjectURL(f); };
     const secs = $('#nl-sections');
     const wireSec = () => $$('[data-sec-del]', secs).forEach((b) => (b.onclick = () => { b.closest('.nl-sec').remove(); dirty = true; }));
     wireSec();
@@ -1649,6 +1775,8 @@ function bindNlEditor() {
       busy(form, true); msg(form, 'Making the preview…');
       try {
         const d = nlCollect(form);
+        const f = form.cover_file.files[0];
+        if (f) d.content.cover_url = URL.createObjectURL(f);
         const blob = await buildNewsletterPdf({ title: d.title, content: d.content }, churchForPdf());
         const url = URL.createObjectURL(blob);
         if (win) win.location.href = url; else location.href = url;
