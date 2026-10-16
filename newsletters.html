@@ -13,10 +13,10 @@ description: Monthly newsletters from Mar Thoma Church, Atlanta.
 
 <section class="section">
   <div class="wrap">
-    <ul class="nl-grid">
+    <ul class="nl-grid" id="nl-grid">
       {% for n in site.data.newsletters %}
       {% if n.url %}{% assign href = n.url | relative_url %}{% else %}{% assign href = site.media_base | append: '/' | append: n.file %}{% endif %}
-      <li>
+      <li data-title="{{ n.title | downcase }}">
         <a class="nl-card" href="{{ href }}" target="_blank" rel="noopener">
           <span class="nl-card__cover">{% if n.cover %}<img src="{{ n.cover | relative_url }}" alt="Front page of the {{ n.title }} newsletter" loading="lazy">{% else %}<span class="nl-card__blank"><small>MTCA Newsletter</small><strong>{{ n.title }}</strong></span>{% endif %}</span>
           <span class="nl-card__title">{{ n.title }}<small>Open PDF</small></span>
@@ -26,3 +26,26 @@ description: Monthly newsletters from Mar Thoma Church, Atlanta.
     </ul>
   </div>
 </section>
+
+<script>
+// Newsletters created or uploaded in Admin → Newsletters (newest first), above the older ones.
+(function () {
+  var CFG = window.MTCA_CONFIG || {}, grid = document.getElementById('nl-grid');
+  if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY || !grid) return;
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  fetch(CFG.SUPABASE_URL + '/rest/v1/newsletters?published=eq.true&pdf_url=not.is.null&select=title,pdf_url,sent_at,created_at&order=created_at.desc',
+    { headers: { apikey: CFG.SUPABASE_ANON_KEY } })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .then(function (rows) {
+      var html = rows.map(function (n) {
+        var dup = grid.querySelector('li[data-title="' + String(n.title).toLowerCase().replace(/"/g, '') + '"]');
+        if (dup) dup.remove();
+        return '<li><a class="nl-card" href="' + esc(n.pdf_url) + '" target="_blank" rel="noopener">' +
+          '<span class="nl-card__cover"><span class="nl-card__blank"><small>MTCA Newsletter</small><strong>' + esc(n.title) + '</strong></span></span>' +
+          '<span class="nl-card__title">' + esc(n.title) + '<small>Open PDF</small></span></a></li>';
+      }).join('');
+      grid.insertAdjacentHTML('afterbegin', html);
+    })
+    .catch(function () {});
+})();
+</script>

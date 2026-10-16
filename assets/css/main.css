@@ -388,3 +388,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
 .sun__readings dt { color: var(--muted); }
 .sun__readings dd { margin: 0; }
 .schedule--upcoming + p { margin-top: .9rem; }
+.unsub { display: flex; justify-content: center; }
+.unsub__card { max-width: 560px; width: 100%; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 2rem; box-shadow: var(--shadow); }
+.unsub__card h2 { margin-top: 0; }
+.unsub .form__msg.is-error { color: #a12a2a; }

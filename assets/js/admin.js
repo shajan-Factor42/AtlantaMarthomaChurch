@@ -4,6 +4,7 @@ import {
   dialog, confirmDialog, getSettings, csv, download, localToIso, isoToLocal, prepareImage, mediaUrl,
   WORSHIP_LANGS, WORSHIP_DEFAULT, fmtTime, nextSundays, sundayInfo, lectionaryEnglish
 } from './common.js';
+import { buildNewsletterPdf, eventWhen } from './newsletter-pdf.js';
 
 const ORGS = (window.MTCA && window.MTCA.orgs) || [];
 const PORTAL_URL = new URL('../members/', location.href).href;
@@ -245,7 +246,7 @@ const ctx = { familyId: null, photoFilter: 'pending', familyQuery: '' };
 
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
-  if (b) { if (b.dataset.tab === 'members') { ctx.familyId = null; if (ctx.membersMode === 'upload') { ctx.membersMode = 'families'; ctx.dirPlan = null; } } show(b.dataset.tab); }
+  if (b) { if (b.dataset.tab === 'newsletters') ctx.nlId = null; if (b.dataset.tab === 'members') { ctx.familyId = null; if (ctx.membersMode === 'upload') { ctx.membersMode = 'families'; ctx.dirPlan = null; } } show(b.dataset.tab); }
 });
 
 async function show(tab) {
@@ -1142,7 +1143,7 @@ async function route() {
   loading.hidden = true;
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { authView.hidden = false; appView.hidden = true; return; }
-  me = ok(await sb.from('members').select('id, first_name, last_name, role').eq('auth_user_id', session.user.id).maybeSingle());
+  me = ok(await sb.from('members').select('id, first_name, last_name, role, email').eq('auth_user_id', session.user.id).maybeSingle());
   if (!me || !['officer', 'admin'].includes(me.role)) {
     authView.hidden = true; appView.hidden = false;
     $('#tabs').hidden = true;
@@ -1248,3 +1249,494 @@ BIND.worship = function () {
     } catch (err) { msg(f, friendly(err), true); } finally { busy(f, false); }
   };
 };
+
+
+/* ---------------------------------------------------------------------
+   Newsletters: build from a template (events + announcements) or upload
+   a PDF, then email it to members + subscribers (Resend, via the
+   newsletter-send function) and list it on the website.
+--------------------------------------------------------------------- */
+const NL_CHURCH = (window.MTCA && window.MTCA.church) || {};
+const NL_SITE_BASE = new URL('../', location.href).href.replace(/\/$/, '');
+const NL_SECTION_IDEAS = ['Birthdays & anniversaries', 'Prayer requests', 'Sunday School', 'Yuvajana Sakhyam', 'Sevika Sangham', 'Thank you'];
+const ymd = (d) => d.toLocaleDateString('en-CA');
+function monthBounds(offset = 1) {
+  const n = new Date(), s = new Date(n.getFullYear(), n.getMonth() + offset, 1), e = new Date(s.getFullYear(), s.getMonth() + 1, 0);
+  return [ymd(s), ymd(e)];
+}
+const monthTitle = (day) => new Date(day + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const sentDay = (iso) => iso ? date(new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })) : '';
+const nlStatus = (n) => n.status === 'sent' ? `<span class="pill pill--both">Sent ${esc(sentDay(n.sent_at))}</span>`
+  : n.status === 'sending' ? '<span class="pill pill--officer">Sending — not finished</span>' : '<span class="pill">Draft</span>';
+const parseEmails = (text) => {
+  const out = new Map();
+  for (const line of String(text).split(/[\n;]+/)) {
+    const m = line.match(/[^\s<>,;"']+@[^\s<>,;"']+\.[a-z]{2,}/i);
+    if (!m) continue;
+    const email = m[0].toLowerCase();
+    const name = line.replace(m[0], '').replace(/[<>",]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!out.has(email)) out.set(email, name || null);
+  }
+  return [...out].map(([email, name]) => ({ email, name }));
+};
+function churchForPdf() {
+  const ch = NL_CHURCH, a = ch.address || {};
+  const sender = ctx.nlSender || {};
+  return {
+    name: ch.name || 'Mar Thoma Church, Atlanta',
+    address: sender.church_address || [a.line1, [a.city, a.state].filter(Boolean).join(', ') + (a.zip ? ' ' + a.zip : '')].filter(Boolean).join(', '),
+    phone: ch.phone, email: ch.email, livestream: ch.livestream_url,
+    website: (window.MTCA && window.MTCA.siteUrl) || 'https://mtcatlanta.org',
+    worship_time: (ch.worship && ch.worship.time) || '10:00 AM',
+    vicar: (window.MTCA && window.MTCA.vicar) || {}
+  };
+}
+async function nlInvoke(body) {
+  const { data, error } = await sb.functions.invoke('newsletter-send', { body: { ...body, site_base: NL_SITE_BASE } });
+  if (error) {
+    let m = error.message;
+    try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) { /* keep message */ }
+    throw new Error(m);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+VIEWS.newsletters = async function () {
+  if (ctx.nlId) return nlEditorView();
+  const [list, subs, outs, mems, setRow] = await Promise.all([
+    sb.from('newsletters').select('id, title, source, status, published, sent_at, sent_count, pdf_url, pdf_path, created_at').order('created_at', { ascending: false }),
+    sb.from('newsletter_subscribers').select('*').order('created_at', { ascending: false }),
+    sb.from('newsletter_optouts').select('*').order('created_at', { ascending: false }),
+    sb.from('members').select('id', { count: 'exact', head: true }).not('email', 'is', null),
+    sb.from('portal_settings').select('value').eq('key', 'newsletter').maybeSingle()
+  ]);
+  ctx.nlList = ok(list); ctx.nlSubs = ok(subs); ctx.nlOuts = ok(outs); ctx.nlSender = (setRow.data && setRow.data.value) || {};
+  const S = ctx.nlSender, memberCount = mems.count || 0;
+  return `
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Newsletters</h2>
+        <p class="muted small">Create a newsletter from the parish template — it pulls in the events and announcements you’ve already added — or upload a finished PDF. Then email it to the mailing list below. Sent newsletters also appear on the website’s Newsletters page.</p></div>
+        <div class="btn-row"><button class="btn btn--primary btn--small" id="nl-new">+ Create from template</button><button class="btn btn--outline btn--small" id="nl-upload">Upload a PDF</button></div></div>
+      ${ctx.nlList.length ? `<div class="table-wrap"><table class="table">
+        <thead><tr><th>Newsletter</th><th>Status</th><th class="hide-sm">On website</th><th></th></tr></thead>
+        <tbody>${ctx.nlList.map((n) => `<tr>
+          <td><strong>${esc(n.title)}</strong><br><small class="muted">${n.source === 'upload' ? 'Uploaded PDF' : 'Parish template'}${n.pdf_url ? ` · <a href="${esc(n.pdf_url)}" target="_blank" rel="noopener">PDF</a>` : ' · no PDF yet'}</small></td>
+          <td>${nlStatus(n)}${n.status === 'sent' ? `<br><small class="muted">${n.sent_count} ${n.sent_count === 1 ? 'person' : 'people'}</small>` : ''}</td>
+          <td class="hide-sm"><label class="check"><input type="checkbox" data-nl-pub="${n.id}" ${n.published ? 'checked' : ''} ${n.pdf_url ? '' : 'disabled'}> Show</label></td>
+          <td class="row-actions"><button class="link-btn" data-nl-open="${n.id}">${n.status === 'sent' ? 'View' : 'Open'}</button><button class="link-btn link-btn--danger" data-nl-del="${n.id}">Delete</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+      : '<p class="empty">No newsletters yet. Create your first one from the template, or upload a PDF you made elsewhere.</p>'}
+    </section>
+
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Mailing list</h2>
+        <p class="muted small">Every member with an email in the parish register gets the newsletter automatically (families marked inactive are skipped). Add visitors, friends and anyone else here. Everyone can unsubscribe from the link in each email.</p></div>
+        <div class="btn-row"><button class="btn btn--primary btn--small" id="nl-sub-add">+ Add people</button><button class="btn btn--outline btn--small" id="nl-sub-csv">Import CSV</button>${ctx.nlSubs.length ? '<button class="btn btn--outline btn--small" id="nl-sub-export">Download</button>' : ''}</div></div>
+      <div class="stat-row">
+        <div class="stat"><strong>${memberCount}</strong><span>members with an email</span></div>
+        <div class="stat"><strong>${ctx.nlSubs.length}</strong><span>other subscribers</span></div>
+        <div class="stat"><strong>${ctx.nlOuts.length}</strong><span>unsubscribed</span></div>
+      </div>
+      <input type="file" id="nl-csv-file" accept=".csv,text/csv,.txt" hidden>
+      ${ctx.nlSubs.length ? `<div class="table-wrap"><table class="table">
+        <thead><tr><th>Email</th><th>Name</th><th class="hide-sm">Added</th><th></th></tr></thead>
+        <tbody>${ctx.nlSubs.map((s) => `<tr><td>${esc(s.email)}</td><td>${val(s.name)}</td><td class="hide-sm">${date(s.created_at.slice(0, 10))}</td>
+          <td class="row-actions"><button class="link-btn link-btn--danger" data-sub-del="${s.id}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="empty">No extra subscribers yet.</p>'}
+      ${ctx.nlOuts.length ? `<details class="nl-optouts"><summary>Unsubscribed (${ctx.nlOuts.length})</summary>
+        <p class="muted small">These people clicked “Unsubscribe” and won’t receive newsletters, even if they’re members. Only put someone back if they ask.</p>
+        <ul>${ctx.nlOuts.map((o) => `<li>${esc(o.email)} <small class="muted">since ${date(o.created_at.slice(0, 10))}</small> <button class="link-btn" data-out-del="${esc(o.email)}">Put back on the list</button></li>`).join('')}</ul></details>` : ''}
+    </section>
+
+    <section class="pcard">
+      <h2>Sender</h2>
+      <p class="muted small">How the email appears in people’s inboxes.${isAdmin() ? '' : ' Only an admin can change this.'}</p>
+      <form id="nl-sender" class="form form--flat">
+        <div class="row-3">
+          <label>From name<input name="from_name" value="${esc(S.from_name || 'Mar Thoma Church, Atlanta')}" maxlength="80" ${isAdmin() ? '' : 'disabled'}></label>
+          <label>From address<input type="email" name="from_email" value="${esc(S.from_email || 'news@mtcatlanta.org')}" ${isAdmin() ? '' : 'disabled'}><small class="muted">Must be on the domain verified in Resend.</small></label>
+          <label>Replies go to<input type="email" name="reply_to" value="${esc(S.reply_to || NL_CHURCH.email || '')}" ${isAdmin() ? '' : 'disabled'}></label>
+        </div>
+        <label>Church address in the email footer<input name="church_address" value="${esc(S.church_address || churchForPdf().address)}" maxlength="160" ${isAdmin() ? '' : 'disabled'}></label>
+        ${isAdmin() ? '<div><button class="btn btn--primary btn--small" type="submit">Save sender</button><p class="form__msg" role="status"></p></div>' : ''}
+      </form>
+    </section>`;
+};
+
+BIND.newsletters = function () {
+  if (ctx.nlId) return bindNlEditor();
+  $('#nl-new').onclick = () => {
+    const [s, e] = monthBounds(1);
+    dialog('New newsletter', `
+      <p class="muted">The newsletter pulls in the events in these dates and the announcements showing at that time. You can pick and edit everything on the next screen.</p>
+      <label>Title<input name="title" value="${esc(monthTitle(s))}" required maxlength="80"></label>
+      <div class="row-2"><label>Covers from<input type="date" name="period_start" value="${s}" required></label><label>to<input type="date" name="period_end" value="${e}" required></label></div>`,
+    async (v) => {
+      if (v.period_end < v.period_start) throw new Error('The end date is before the start date.');
+      const content = { message_heading: 'From the Vicar’s desk', include_sundays: true, include_flyers: true, attach_pdf: true };
+      const row = ok(await sb.from('newsletters').insert({ title: v.title.trim(), period_start: v.period_start, period_end: v.period_end, source: 'template', content, created_by: me.id }).select('id').single());
+      ctx.nlId = row.id; await show('newsletters');
+    }, { saveLabel: 'Continue' });
+  };
+  $('#nl-upload').onclick = () => {
+    const [s] = monthBounds(0);
+    dialog('Upload a newsletter PDF', `
+      <label>Title<input name="title" value="${esc(monthTitle(s))}" required maxlength="80"></label>
+      <label>PDF file<input type="file" name="file" accept="application/pdf" required><small class="muted">Up to 25 MB. Under 8 MB is also attached to the email.</small></label>
+      <label>Short message for the email (optional)<textarea name="message" rows="4" placeholder="Dear friends, the November newsletter is here…"></textarea></label>`,
+    async (v, form) => {
+      const file = form.file.files[0];
+      if (!file || file.type !== 'application/pdf') throw new Error('Choose a PDF file.');
+      if (file.size > 25 * 1048576) throw new Error('The PDF must be 25 MB or smaller.');
+      const row = ok(await sb.from('newsletters').insert({ title: v.title.trim(), source: 'upload', content: { message: (v.message || '').trim(), attach_pdf: true }, created_by: me.id }).select('id').single());
+      await nlUploadPdf(row.id, v.title.trim(), file);
+      ctx.nlId = row.id; toast('PDF uploaded'); await show('newsletters');
+    }, { saveLabel: 'Upload' });
+  };
+  $$('[data-nl-open]', view).forEach((b) => (b.onclick = () => { ctx.nlId = b.dataset.nlOpen; show('newsletters'); }));
+  $$('[data-nl-pub]', view).forEach((c) => (c.onchange = async () => {
+    try { ok(await sb.from('newsletters').update({ published: c.checked }).eq('id', c.dataset.nlPub)); toast(c.checked ? 'Shown on the website' : 'Hidden from the website'); }
+    catch (err) { c.checked = !c.checked; toast(friendly(err), true); }
+  }));
+  $$('[data-nl-del]', view).forEach((b) => (b.onclick = () => {
+    const n = ctx.nlList.find((x) => x.id === b.dataset.nlDel);
+    confirmDialog('Delete this newsletter?', `“${esc(n.title)}” and its PDF will be removed${n.status === 'sent' ? ', including from the website. People who already received it keep their email' : ''}. This can’t be undone.`, async () => {
+      if (n.pdf_path) await sb.storage.from('newsletters').remove([n.pdf_path]).catch(() => {});
+      ok(await sb.from('newsletters').delete().eq('id', n.id)); toast('Deleted'); await show('newsletters');
+    });
+  }));
+  // Mailing list
+  $('#nl-sub-add').onclick = () => dialog('Add people to the mailing list', `
+    <label>Email addresses<textarea name="list" rows="7" required placeholder="mary@example.com&#10;John Varghese <john@example.com>&#10;one per line"></textarea>
+    <small class="muted">One per line. A name before or after the address is kept.</small></label>`, async (v) => {
+    const rows = parseEmails(v.list);
+    if (!rows.length) throw new Error('No email addresses found.');
+    await nlAddSubscribers(rows);
+  }, { saveLabel: 'Add' });
+  const fileIn = $('#nl-csv-file');
+  $('#nl-sub-csv').onclick = () => fileIn.click();
+  fileIn.onchange = async () => {
+    const f = fileIn.files[0]; if (!f) return;
+    try {
+      const text = await f.text();
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      const head = (lines[0] || '').toLowerCase().split(',').map((h) => h.replace(/"/g, '').trim());
+      const ei = head.findIndex((h) => /e-?mail/.test(h)), ni = head.findIndex((h) => /^name$|full ?name/.test(h)), fi = head.findIndex((h) => /first/.test(h)), li = head.findIndex((h) => /last|sur/.test(h));
+      let rows;
+      if (ei >= 0) {
+        rows = lines.slice(1).map((l) => l.split(',').map((x) => x.replace(/^"|"$/g, '').trim())).map((c) => ({
+          email: (c[ei] || '').toLowerCase(), name: ni >= 0 ? c[ni] : [fi >= 0 ? c[fi] : '', li >= 0 ? c[li] : ''].join(' ').trim() || null
+        })).filter((r) => /@.+\./.test(r.email));
+      } else rows = parseEmails(text);
+      if (!rows.length) throw new Error('No email addresses found in that file. It needs a column called “email”.');
+      await nlAddSubscribers(rows);
+    } catch (err) { toast(friendly(err), true); }
+    fileIn.value = '';
+  };
+  const exp = $('#nl-sub-export');
+  if (exp) exp.onclick = () => download(`mtca-newsletter-subscribers-${todayIso()}.csv`, csv(ctx.nlSubs.map(({ email, name, created_at }) => ({ email, name, added: created_at.slice(0, 10) }))));
+  $$('[data-sub-del]', view).forEach((b) => (b.onclick = () => {
+    const s = ctx.nlSubs.find((x) => x.id === b.dataset.subDel);
+    confirmDialog('Remove from the mailing list?', `${esc(s.email)} won’t get future newsletters (unless they’re also a member with this email).`, async () => {
+      ok(await sb.from('newsletter_subscribers').delete().eq('id', s.id)); toast('Removed'); await show('newsletters');
+    }, 'Remove');
+  }));
+  $$('[data-out-del]', view).forEach((b) => (b.onclick = () => confirmDialog('Put back on the list?', `Only do this if ${esc(b.dataset.outDel)} asked to receive newsletters again.`, async () => {
+    ok(await sb.from('newsletter_optouts').delete().eq('email', b.dataset.outDel)); toast('Back on the list'); await show('newsletters');
+  }, 'Put back')));
+  const sf = $('#nl-sender');
+  if (sf && isAdmin()) sf.onsubmit = async (e) => {
+    e.preventDefault(); busy(sf, true);
+    try {
+      const value = { ...ctx.nlSender, from_name: sf.from_name.value.trim(), from_email: sf.from_email.value.trim().toLowerCase(), reply_to: sf.reply_to.value.trim(), church_address: sf.church_address.value.trim() };
+      ok(await sb.from('portal_settings').upsert({ key: 'newsletter', value, updated_at: new Date().toISOString() }, { onConflict: 'key' }));
+      toast('Sender saved'); await show('newsletters');
+    } catch (err) { msg(sf, friendly(err), true); } finally { busy(sf, false); }
+  };
+};
+
+async function nlAddSubscribers(rows) {
+  const existing = new Set(ctx.nlSubs.map((s) => s.email.toLowerCase()));
+  const fresh = rows.filter((r) => !existing.has(r.email));
+  if (fresh.length) ok(await sb.from('newsletter_subscribers').upsert(fresh.map((r) => ({ email: r.email, name: r.name || null, source: 'admin' })), { onConflict: 'email', ignoreDuplicates: true }));
+  const skipped = rows.length - fresh.length;
+  toast(`${fresh.length} added${skipped ? `, ${skipped} already on the list` : ''}`);
+  await show('newsletters');
+}
+
+async function nlUploadPdf(id, title, blob) {
+  const old = ctx.nlRow && ctx.nlRow.id === id ? ctx.nlRow.pdf_path : null;
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'newsletter';
+  const path = `${new Date().getFullYear()}/${slug}-${Date.now()}.pdf`;
+  ok(await sb.storage.from('newsletters').upload(path, blob, { contentType: 'application/pdf', cacheControl: '3600' }));
+  const url = sb.storage.from('newsletters').getPublicUrl(path).data.publicUrl;
+  ok(await sb.from('newsletters').update({ pdf_path: path, pdf_url: url, updated_at: new Date().toISOString() }).eq('id', id));
+  if (old && old !== path) await sb.storage.from('newsletters').remove([old]).catch(() => {});
+  return url;
+}
+
+/* ---------- Editor ---------- */
+async function nlEditorView() {
+  const nl = ok(await sb.from('newsletters').select('*').eq('id', ctx.nlId).maybeSingle());
+  if (!nl) { ctx.nlId = null; return VIEWS.newsletters(); }
+  ctx.nlRow = nl;
+  if (!ctx.nlSender) { const r = await sb.from('portal_settings').select('value').eq('key', 'newsletter').maybeSingle(); ctx.nlSender = (r.data && r.data.value) || {}; }
+  const c = nl.content || {};
+  const sent = nl.status !== 'draft';
+  let body = '';
+  if (nl.source === 'template') {
+    const s = nl.period_start, e = nl.period_end;
+    const [er, ar, wr, ws] = await Promise.all([
+      sb.from('events').select('*').eq('published', true).gte('starts_at', new Date(s + 'T00:00:00').toISOString()).lte('starts_at', new Date(e + 'T23:59:59').toISOString()).order('starts_at'),
+      sb.from('member_announcements').select('*').lte('published_on', e).or(`expires_on.is.null,expires_on.gte.${s}`).order('pinned', { ascending: false }).order('published_on', { ascending: false }),
+      sb.from('portal_settings').select('value').eq('key', 'worship').maybeSingle(),
+      sb.from('worship_services').select('*').gte('day', s).lte('day', e)
+    ]);
+    const pattern = { ...WORSHIP_DEFAULT, ...((wr.data && wr.data.value) || {}) };
+    pattern.schedule = { ...WORSHIP_DEFAULT.schedule, ...(pattern.schedule || {}) };
+    const changes = Object.fromEntries((ok(ws) || []).map((x) => [x.day, x]));
+    const sundays = [];
+    for (let d = new Date(s + 'T12:00:00'); ymd(d) <= e; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 0) continue;
+      const info = sundayInfo(ymd(d), pattern, changes[ymd(d)]);
+      sundays.push({ label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), lang: info.lang, time: fmtTime(info.time), note: [info.note, info.celebrant].filter(Boolean).join(' · ') });
+    }
+    ctx.nlCand = { events: ok(er), anns: ok(ar), sundays };
+    // Keep sent snapshots visible even if the event was later removed
+    const evIds = c.event_ids || ctx.nlCand.events.filter((x) => !x.members_only).map((x) => x.id);
+    const anIds = c.announcement_ids || ctx.nlCand.anns.map((x) => x.id);
+    const evList = ctx.nlCand.events.length ? ctx.nlCand.events.map((x) => `<label class="nl-pick"><input type="checkbox" name="ev" value="${x.id}" ${evIds.includes(x.id) ? 'checked' : ''}>
+        <span><strong>${esc(x.title)}</strong>${x.members_only ? ' <span class="badge">Members only</span>' : ''}<br><small class="muted">${esc(eventWhen(x))}${x.location ? ' · ' + esc(x.location) : ''}${x.flyer_url ? ' · has flyer' : ''}</small></span></label>`).join('')
+      : `<p class="empty">No published events between ${date(s)} and ${date(e)}. Add them under <a href="#events" data-goto="events">Events</a>, then come back.</p>`;
+    const anList = ctx.nlCand.anns.length ? ctx.nlCand.anns.map((x) => `<label class="nl-pick"><input type="checkbox" name="an" value="${x.id}" ${anIds.includes(x.id) ? 'checked' : ''}>
+        <span><strong>${esc(x.title)}</strong> <span class="pill pill--${x.audience}">${esc(AUDIENCE[x.audience] || x.audience)}</span><br><small class="muted clamp">${esc(x.body)}</small></span></label>`).join('')
+      : `<p class="empty">No announcements showing in these dates. Add them under <a href="#announcements" data-goto="announcements">Announcements</a>.</p>`;
+    const sections = c.sections && c.sections.length ? c.sections : [];
+    body = `
+    <section class="pcard">
+      <h2>1. What goes in it</h2>
+      <form id="nl-form" class="form form--flat">
+        <div class="row-3">
+          <label>Title<input name="title" value="${esc(nl.title)}" required maxlength="80"></label>
+          <label>Covers from<input type="date" name="period_start" value="${esc(s)}" required></label>
+          <label>to<input type="date" name="period_end" value="${esc(e)}" required></label>
+        </div>
+        <label>Message heading<input name="message_heading" value="${esc(c.message_heading ?? 'From the Vicar’s desk')}" maxlength="80"></label>
+        <label>Message<textarea name="message" rows="8" placeholder="Dear brothers and sisters in Christ, …">${esc(c.message || '')}</textarea><small class="muted">Opens the newsletter and the email. Leave a blank line between paragraphs. Malayalam works too.</small></label>
+        <label>Signed<input name="signoff" value="${esc(c.signoff || '')}" maxlength="120" placeholder="${esc(((window.MTCA && window.MTCA.vicar) || {}).name || 'Rev. …')}, Vicar"></label>
+        <div class="nl-opts">
+          <label class="check"><input type="checkbox" name="include_sundays" ${c.include_sundays !== false ? 'checked' : ''}> Sunday schedule for these dates (${sundays.length} Sundays, from the Worship page)</label>
+          <label class="check"><input type="checkbox" name="include_flyers" ${c.include_flyers !== false ? 'checked' : ''}> Include flyer pictures</label>
+          <label class="check"><input type="checkbox" name="attach_pdf" ${c.attach_pdf !== false ? 'checked' : ''}> Attach the PDF to the email (as well as a link)</label>
+        </div>
+        <h3 class="nl-h">Events <small class="muted">${ctx.nlCand.events.length} in these dates</small></h3>
+        <div class="nl-picks">${evList}</div>
+        <h3 class="nl-h">Announcements <small class="muted">${ctx.nlCand.anns.length} showing in these dates</small></h3>
+        <div class="nl-picks">${anList}</div>
+        <h3 class="nl-h">More sections <small class="muted">optional</small></h3>
+        <div id="nl-sections">${sections.map(nlSectionHtml).join('')}</div>
+        <div class="chip-row"><span class="muted small">Add:</span>${NL_SECTION_IDEAS.map((t) => `<button type="button" class="nl-chip" data-add-sec="${esc(t)}">${esc(t)}</button>`).join('')}<button type="button" class="nl-chip" data-add-sec="">Other…</button></div>
+        <div class="nl-actions">
+          <button class="btn btn--outline" type="submit">Save draft</button>
+          <button class="btn btn--outline" type="button" id="nl-preview">Preview PDF</button>
+          <button class="btn btn--primary" type="button" id="nl-build">${nl.pdf_url ? 'Update the PDF' : 'Create the PDF'}</button>
+          <p class="form__msg" role="status"></p>
+        </div>
+      </form>
+    </section>`;
+  } else {
+    body = `
+    <section class="pcard">
+      <h2>1. Newsletter</h2>
+      <form id="nl-form" class="form form--flat">
+        <label>Title<input name="title" value="${esc(nl.title)}" required maxlength="80"></label>
+        <label>Short message for the email<textarea name="message" rows="5" placeholder="Dear friends, the newsletter is attached…">${esc(c.message || '')}</textarea></label>
+        <label class="check"><input type="checkbox" name="attach_pdf" ${c.attach_pdf !== false ? 'checked' : ''}> Attach the PDF to the email (as well as a link)</label>
+        <label>Replace the PDF (optional)<input type="file" name="file" accept="application/pdf"></label>
+        <div class="nl-actions"><button class="btn btn--primary" type="submit">Save</button><p class="form__msg" role="status"></p></div>
+      </form>
+    </section>`;
+  }
+  const stale = nl.source === 'template' && c.pdf_stale;
+  return `
+    <p><button class="link-btn" id="nl-back">← All newsletters</button></p>
+    <div class="nl-titlebar"><h2>${esc(nl.title)}</h2>${nlStatus(nl)}</div>
+    ${sent ? `<div class="notice">This newsletter has been sent. Changes you save here update the PDF on the website, but people who already got the email keep the version they received.</div>` : ''}
+    ${body}
+    <section class="pcard" id="nl-send-card">
+      <h2>2. Send</h2>
+      <div class="nl-pdf">${nl.pdf_url
+        ? `<a class="btn btn--outline btn--small" href="${esc(nl.pdf_url)}" target="_blank" rel="noopener">Open the PDF</a> <span class="muted small">${stale ? '<strong class="warn">You’ve changed the contents since this PDF was made — update the PDF before sending.</strong>' : 'This is exactly what people will get.'}</span>`
+        : `<p class="muted">${nl.source === 'template' ? 'Create the PDF above first.' : 'Upload the PDF first.'}</p>`}</div>
+      <div id="nl-stats" class="muted small">Counting recipients…</div>
+      <div class="nl-send-grid">
+        <form id="nl-test" class="form form--flat nl-test">
+          <label>Send a test to<input type="email" name="to" value="${esc(me.email || '')}" required></label>
+          <button class="btn btn--outline btn--small" type="submit" ${nl.pdf_url ? '' : 'disabled'}>Send test</button>
+          <p class="form__msg" role="status"></p>
+        </form>
+        <div class="nl-go">
+          <button class="btn btn--gold" id="nl-send" disabled>Send to everyone</button>
+          <div class="progress" id="nl-progress" hidden><i></i></div>
+          <p class="small" id="nl-send-msg" role="status"></p>
+        </div>
+      </div>
+    </section>`;
+}
+
+const nlSectionHtml = (sec = {}) => `<fieldset class="nl-sec">
+  <div class="nl-sec__head"><input name="sec_heading" value="${esc(sec.heading || '')}" placeholder="Section heading" maxlength="80" aria-label="Section heading"><button type="button" class="link-btn link-btn--danger" data-sec-del>Remove</button></div>
+  <textarea name="sec_body" rows="4" placeholder="Text for this section" aria-label="Section text">${esc(sec.body || '')}</textarea></fieldset>`;
+
+/** Read the editor into a content object, with copies of the chosen events/announcements. */
+function nlCollect(form) {
+  const nl = ctx.nlRow, c = { ...(nl.content || {}) };
+  if (nl.source === 'upload') {
+    return { title: form.title.value.trim(), content: { ...c, message: form.message.value.trim(), attach_pdf: form.attach_pdf.checked } };
+  }
+  const evIds = $$('input[name=ev]:checked', form).map((i) => i.value);
+  const anIds = $$('input[name=an]:checked', form).map((i) => i.value);
+  const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] ?? null]));
+  const events = ctx.nlCand.events.filter((x) => evIds.includes(x.id)).map((x) => ({ ...pick(x, ['id', 'title', 'starts_at', 'ends_at', 'all_day', 'location', 'description', 'link_url', 'flyer_url']), flyer_url: x.flyer_url ? mediaUrl(x.flyer_url) : null, when: eventWhen(x) }));
+  const announcements = ctx.nlCand.anns.filter((x) => anIds.includes(x.id)).map((x) => ({ ...pick(x, ['id', 'title', 'body', 'link_url']), flyer_url: x.flyer_url ? mediaUrl(x.flyer_url) : null }));
+  const heads = $$('[name=sec_heading]', form), bodies = $$('[name=sec_body]', form);
+  const sections = heads.map((h, i) => ({ heading: h.value.trim(), body: bodies[i].value.trim() })).filter((x) => x.heading || x.body);
+  Object.assign(c, {
+    message_heading: form.message_heading.value.trim(), message: form.message.value.trim(), signoff: form.signoff.value.trim(),
+    include_sundays: form.include_sundays.checked, include_flyers: form.include_flyers.checked, attach_pdf: form.attach_pdf.checked,
+    event_ids: evIds, announcement_ids: anIds, events, announcements, sections,
+    sundays: form.include_sundays.checked ? ctx.nlCand.sundays : []
+  });
+  return { title: form.title.value.trim(), period_start: form.period_start.value, period_end: form.period_end.value, content: c };
+}
+
+function bindNlEditor() {
+  const nl = ctx.nlRow, form = $('#nl-form');
+  $('#nl-back').onclick = () => { ctx.nlId = null; show('newsletters'); };
+  $$('[data-goto]', view).forEach((a) => (a.onclick = (e) => { e.preventDefault(); ctx.nlId = null; show(a.dataset.goto); }));
+  let dirty = false;
+  form.addEventListener('input', () => (dirty = true));
+
+  async function save({ quiet = false, rebuilt = false } = {}) {
+    const d = nlCollect(form);
+    if (!d.title) throw new Error('Give the newsletter a title.');
+    if (d.period_end && d.period_end < d.period_start) throw new Error('The end date is before the start date.');
+    if (nl.source === 'template') d.content.pdf_stale = rebuilt ? false : !!(nl.pdf_url && (dirty || nl.content.pdf_stale));
+    ok(await sb.from('newsletters').update({ ...d, updated_at: new Date().toISOString() }).eq('id', nl.id));
+    const datesChanged = nl.source === 'template' && (d.period_start !== nl.period_start || d.period_end !== nl.period_end);
+    Object.assign(nl, d); dirty = false;
+    if (!quiet) toast(datesChanged ? 'Saved — showing events for the new dates' : 'Saved');
+    return datesChanged;
+  }
+
+  if (nl.source === 'template') {
+    const secs = $('#nl-sections');
+    const wireSec = () => $$('[data-sec-del]', secs).forEach((b) => (b.onclick = () => { b.closest('.nl-sec').remove(); dirty = true; }));
+    wireSec();
+    $$('[data-add-sec]', view).forEach((b) => (b.onclick = () => {
+      secs.insertAdjacentHTML('beforeend', nlSectionHtml({ heading: b.dataset.addSec }));
+      wireSec(); dirty = true;
+      const last = secs.lastElementChild; $(b.dataset.addSec ? 'textarea' : 'input', last).focus();
+    }));
+    form.onsubmit = async (e) => {
+      e.preventDefault(); busy(form, true);
+      try { const moved = await save(); if (moved) await show('newsletters'); else await refreshSendCard(); }
+      catch (err) { msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+    $('#nl-preview').onclick = async () => {
+      const win = window.open('', '_blank');
+      busy(form, true); msg(form, 'Making the preview…');
+      try {
+        const d = nlCollect(form);
+        const blob = await buildNewsletterPdf({ title: d.title, content: d.content }, churchForPdf());
+        const url = URL.createObjectURL(blob);
+        if (win) win.location.href = url; else location.href = url;
+        msg(form, '');
+      } catch (err) { if (win) win.close(); msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+    $('#nl-build').onclick = async () => {
+      busy(form, true); msg(form, 'Creating the PDF…');
+      try {
+        const moved = await save({ quiet: true, rebuilt: true });
+        if (moved) { msg(form, ''); toast('The dates changed — check the events, then create the PDF again'); await show('newsletters'); return; }
+        const blob = await buildNewsletterPdf({ title: nl.title, content: nl.content }, churchForPdf());
+        await nlUploadPdf(nl.id, nl.title, blob);
+        toast('PDF ready'); await show('newsletters');
+      } catch (err) { msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+  } else {
+    form.onsubmit = async (e) => {
+      e.preventDefault(); busy(form, true);
+      try {
+        await save({ quiet: true });
+        const f = form.file.files[0];
+        if (f) {
+          if (f.type !== 'application/pdf') throw new Error('Choose a PDF file.');
+          if (f.size > 25 * 1048576) throw new Error('The PDF must be 25 MB or smaller.');
+          await nlUploadPdf(nl.id, nl.title, f);
+        }
+        toast('Saved'); await show('newsletters');
+      } catch (err) { msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+  }
+
+  // ---- Sending ----
+  const testForm = $('#nl-test');
+  testForm.onsubmit = async (e) => {
+    e.preventDefault();
+    if (dirty) { msg(testForm, 'Save your changes first.', true); return; }
+    busy(testForm, true); msg(testForm, 'Sending…');
+    try { const r = await nlInvoke({ action: 'test', newsletter_id: nl.id, test_email: testForm.to.value.trim() }); msg(testForm, r.message); }
+    catch (err) { msg(testForm, friendly(err), true); } finally { busy(testForm, false); }
+  };
+  const sendBtn = $('#nl-send'), bar = $('#nl-progress'), out = $('#nl-send-msg');
+  let stats = null;
+  async function refreshSendCard() {
+    try {
+      stats = await nlInvoke({ action: 'stats', newsletter_id: nl.id });
+      const parts = [`${stats.members} member${stats.members === 1 ? '' : 's'}`, `${stats.subscribers} subscriber${stats.subscribers === 1 ? '' : 's'}`];
+      $('#nl-stats').innerHTML = `Goes to <strong>${stats.total}</strong> ${stats.total === 1 ? 'person' : 'people'} (${parts.join(' + ')})${stats.opted_out ? `; ${stats.opted_out} ${stats.opted_out === 1 ? 'person who unsubscribed is' : 'people who unsubscribed are'} skipped` : ''}.`
+        + (stats.sent ? ` <strong>Already sent to ${stats.sent}.</strong>` : '')
+        + (stats.failed ? ` <span class="warn">${stats.failed} couldn’t be delivered.</span>` : '')
+        + (!stats.ready ? '<br><span class="warn">Email sending isn’t switched on yet (the Resend key hasn’t been added in Supabase). You can still create the PDF.</span>' : '');
+      const stale = nl.source === 'template' && nl.content.pdf_stale;
+      if (!dirty) out.textContent = '';
+      const left = stats.remaining - (stats.failed || 0);
+      if (stats.failed && left <= 0) { sendBtn.textContent = `Try the ${stats.failed} that failed again`; sendBtn.dataset.retry = '1'; }
+      else { sendBtn.textContent = stats.sent ? `Send to the ${left} not sent yet` : `Send to all ${stats.total}`; delete sendBtn.dataset.retry; }
+      sendBtn.disabled = !nl.pdf_url || stale || !stats.ready || dirty || (left <= 0 && !stats.failed) || !stats.total;
+      if (stats.sent && left <= 0 && !stats.failed) sendBtn.textContent = 'Sent to everyone';
+    } catch (err) { $('#nl-stats').innerHTML = `<span class="warn">${esc(friendly(err))}</span>`; }
+  }
+  form.addEventListener('input', () => { sendBtn.disabled = true; out.textContent = 'Save your changes before sending.'; });
+  sendBtn.onclick = () => {
+    const retry = !!sendBtn.dataset.retry;
+    const n = retry ? stats.failed : stats.remaining - (stats.failed || 0);
+    confirmDialog(retry ? 'Try again?' : `Send “${esc(nl.title)}”?`, retry ? `We’ll try the ${n} address${n === 1 ? '' : 'es'} that failed.` : `The newsletter will be emailed to ${n} ${n === 1 ? 'person' : 'people'} from ${esc((ctx.nlSender || {}).from_email || 'news@mtcatlanta.org')}. This can’t be undone. Keep this page open until it finishes — it takes about a minute for every 100 people.`, async () => { setTimeout(run, 0); }, retry ? 'Try again' : 'Send now');
+    async function run() {
+      sendBtn.disabled = true; bar.hidden = false; testForm.hidden = true;
+      const start = stats.sent;
+      let lastSent = -1, sentNow = start;
+      try {
+        for (;;) {
+          const r = await nlInvoke({ action: 'send', newsletter_id: nl.id, retry_failed: retry });
+          const total = r.total || stats.total;
+          $('i', bar).style.width = `${Math.round((r.sent / Math.max(1, total)) * 100)}%`;
+          sentNow = r.sent;
+          out.textContent = `Sent ${r.sent} of ${total}…${r.failed ? ` (${r.failed} failed)` : ''}`;
+          if (!r.remaining || r.sent === lastSent) break;
+          lastSent = r.sent;
+        }
+        toast(`Newsletter sent to ${sentNow - start} ${sentNow - start === 1 ? 'person' : 'people'}`);
+        ctx.nlId = nl.id; await show('newsletters');
+      } catch (err) {
+        bar.hidden = true; testForm.hidden = false;
+        await refreshSendCard();
+        out.textContent = `Stopped after ${sentNow - start} sent: ${friendly(err)} Press Send again to carry on where it stopped.`;
+      }
+    }
+    
+  };
+  refreshSendCard();
+}

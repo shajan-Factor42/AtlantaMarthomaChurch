@@ -1,0 +1,60 @@
+---
+layout: default
+title: Newsletter subscription
+permalink: /newsletters/unsubscribe/
+description: Manage your newsletter subscription.
+sitemap: false
+---
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Newsletters</p>
+    <h1>Newsletter emails</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap unsub">
+    <div class="unsub__card" id="unsub">
+      <p class="muted">Loading…</p>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  var CFG = window.MTCA_CONFIG || {}, box = document.getElementById('unsub');
+  var q = new URLSearchParams(location.search), e = q.get('e') || '', t = q.get('t') || '';
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var contact = '{{ site.data.church.email }}';
+  if (!e || !t || !CFG.SUPABASE_URL) {
+    box.innerHTML = '<h2>Link incomplete</h2><p>Please use the “Unsubscribe” link at the bottom of a newsletter email, or email <a href="mailto:' + contact + '">' + contact + '</a> and we’ll take you off the list.</p>';
+    return;
+  }
+  function ask() {
+    box.innerHTML = '<h2>Stop the newsletter emails?</h2><p><strong>' + esc(e) + '</strong> will no longer receive the parish newsletter by email. You can still read every issue on the <a href="{{ "/newsletters/" | relative_url }}">Newsletters page</a>.</p>' +
+      '<p><button class="btn btn--primary" id="unsub-go">Unsubscribe</button></p><p class="form__msg" role="status"></p>';
+    document.getElementById('unsub-go').onclick = function () { call('unsubscribe'); };
+  }
+  function done(subscribed) {
+    box.innerHTML = subscribed
+      ? '<h2>You’re back on the list</h2><p>' + esc(e) + ' will receive the parish newsletter again. Thank you!</p>'
+      : '<h2>You’ve been unsubscribed</h2><p>' + esc(e) + ' won’t receive newsletter emails any more. We’ll miss you!</p><p><button class="btn btn--outline btn--small" id="unsub-undo">Changed your mind? Subscribe again</button></p>';
+    var u = document.getElementById('unsub-undo'); if (u) u.onclick = function () { call('resubscribe'); };
+  }
+  function call(action) {
+    var b = box.querySelector('button'); if (b) b.disabled = true;
+    fetch(CFG.SUPABASE_URL + '/functions/v1/newsletter-unsubscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ e: e, t: t, action: action })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.error) throw new Error(d.error);
+      done(d.subscribed);
+    }).catch(function (err) {
+      if (b) b.disabled = false;
+      var m = box.querySelector('.form__msg') || box.appendChild(document.createElement('p'));
+      m.className = 'form__msg is-error'; m.textContent = (err && err.message) || 'Something went wrong. Please try again, or email ' + contact + '.';
+    });
+  }
+  ask();
+})();
+</script>
