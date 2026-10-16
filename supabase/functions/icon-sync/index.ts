@@ -11,6 +11,22 @@
 //   nightly                        – (cron) live pull of membership + this and last year's gifts, then merge
 // source "test" = Icon's public developer database; it is only ever merged as a dry run.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import postgres from "npm:postgres@3.4.5";
+
+// The merge can take longer than the API's 8-second query limit, so it runs over a direct database connection.
+async function runMerge(from: string | null, to: string | null, dry: boolean) {
+  const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    await sql`set statement_timeout = '140s'`;
+    const rows = await sql`select public.icon_merge(${from}::date, ${to}::date, ${dry}) as r`;
+    return rows[0].r;
+  } finally { await sql.end({ timeout: 5 }); }
+}
+async function clearStaging() {
+  const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 1, prepare: false, idle_timeout: 5 });
+  try { await sql`truncate public.icon_contributions, public.icon_pledges, public.icon_members, public.icon_households`; }
+  finally { await sql.end({ timeout: 5 }); }
+}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -119,10 +135,7 @@ Deno.serve(async (req: Request) => {
     if (action === "pull") {
       const part = body.part;
       if (part === "start") {
-        for (const t of ["icon_contributions", "icon_pledges", "icon_members", "icon_households"]) {
-          const { error } = await sb.from(t).delete().neq("id", "");
-          if (error) throw new Error(error.message);
-        }
+        await clearStaging();
         return json({ ok: true });
       }
       if (part === "membership") {
@@ -157,9 +170,10 @@ Deno.serve(async (req: Request) => {
     if (action === "merge") {
       const dry = body.dry !== false || source !== "live";
       const run = await sb.from("icon_sync_runs").insert({ source, dry_run: dry, trigger: isCron ? "server" : "admin" }).select("id").single();
-      const { data, error } = await sb.rpc("icon_merge", { p_from: body.from || null, p_to: body.to || null, p_dry: dry });
-      await sb.from("icon_sync_runs").update({ finished_at: new Date().toISOString(), ok: !error, summary: data || null, error: error?.message || null }).eq("id", run.data?.id);
-      if (error) throw new Error(error.message);
+      let data = null, error: string | null = null;
+      try { data = await runMerge(body.from || null, body.to || null, dry); } catch (e) { error = (e as Error).message; }
+      await sb.from("icon_sync_runs").update({ finished_at: new Date().toISOString(), ok: !error, summary: data, error }).eq("id", run.data?.id);
+      if (error) throw new Error(error);
       return json({ ok: true, summary: data });
     }
 
@@ -168,7 +182,7 @@ Deno.serve(async (req: Request) => {
       if (!live) return json({ ok: true, skipped: "ICON login not set." });
       const run = await sb.from("icon_sync_runs").insert({ source: "live", dry_run: false, trigger: "nightly" }).select("id").single();
       try {
-        for (const t of ["icon_contributions", "icon_pledges", "icon_members", "icon_households"]) await sb.from(t).delete().neq("id", "");
+        await clearStaging();
         const [hh, mm, pp] = await Promise.all([pullAll(live, "membership", "households"), pullAll(live, "membership", "members"), pullAll(live, "contributions", "pledges").catch(() => [] as Any[])]);
         await stage(sb, "icon_households", hh.map((d) => ({ id: String(d.id), data: d, source: "live" })));
         await stage(sb, "icon_members", mm.map((d) => ({ id: String(d.id), household_id: d.household_id ? String(d.household_id) : null, data: d, source: "live" })));
@@ -178,8 +192,7 @@ Deno.serve(async (req: Request) => {
           const gifts = await pullAll(live, "contributions", "posted", { begin_date: `${year}-01-01`, end_date: `${year}-12-31` });
           await stage(sb, "icon_contributions", gifts.map((d) => ({ id: String(d.id), household_id: d.household_id ? String(d.household_id) : null, date_given: (d.date_given || d.batch_date).slice(0, 10), data: d, source: "live" })));
         }
-        const { data, error } = await sb.rpc("icon_merge", { p_from: `${y - 1}-01-01`, p_to: `${y}-12-31`, p_dry: false });
-        if (error) throw new Error(error.message);
+        const data = await runMerge(`${y - 1}-01-01`, `${y}-12-31`, false);
         await sb.from("icon_sync_runs").update({ finished_at: new Date().toISOString(), ok: true, summary: data }).eq("id", run.data?.id);
         return json({ ok: true, summary: data });
       } catch (e) {
