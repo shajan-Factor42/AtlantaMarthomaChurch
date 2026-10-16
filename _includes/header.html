@@ -5,7 +5,6 @@
       <span>Sunday Worship · <span data-sunday-time>{{ site.data.church.worship.time }}</span> · <span data-sunday-language>Malayalam &amp; English</span></span>
       <span class="topbar__links">
         <a href="{{ site.data.church.livestream_url }}" target="_blank" rel="noopener"><span class="live-dot"></span> Watch Live</a>
-        <a href="{{ '/prayer-request/' | relative_url }}">🙏 Prayer<span class="topbar__long">&nbsp;Request</span></a>
         <a href="mailto:{{ site.data.church.email }}">{{ site.data.church.email }}</a>
       </span>
     </div>
@@ -26,6 +25,7 @@
       <a href="{{ '/gallery/' | relative_url }}" {% if p contains '/gallery' %}aria-current="page"{% endif %}>Gallery</a>
       <a href="{{ '/newsletters/' | relative_url }}" {% if p contains '/newsletters' %}aria-current="page"{% endif %}>Newsletters</a>
       <a href="{{ '/contact-us/' | relative_url }}" {% if p contains '/contact' %}aria-current="page"{% endif %}>Contact</a>
+      <a href="{{ '/prayer-request/' | relative_url }}" {% if p contains '/prayer-request' %}aria-current="page"{% endif %}>Prayer Request</a>
       <span class="nav__actions">
         <a class="btn btn--small btn--gold nav__donate" href="{{ '/give/' | relative_url }}" {% if p contains '/give' %}aria-current="page"{% endif %}>Donate</a>
         <a class="btn btn--small btn--outline nav__login" href="{{ '/members/' | relative_url }}">Member Login</a>
