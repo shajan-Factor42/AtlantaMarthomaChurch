@@ -488,6 +488,7 @@ const VIEWS = {
           <h2>Mitra AI chat</h2>
           <p class="muted small">The “Ask Mitra AI” chat on the public site and member portal. It answers from the website, events, home-page announcements and the reference sources below.</p>
           <label class="toggle"><input type="checkbox" name="chat_enabled" ${s.chat.enabled !== false ? 'checked' : ''}><span>Show Mitra AI</span></label>
+          <label class="toggle"><input type="checkbox" name="chat_voice" ${s.chat.voice !== false ? 'checked' : ''}><span>Allow voice — visitors can speak questions and hear replies (uses the browser’s built-in voices, no cost)</span></label>
           <div class="form form--flat">
             <label>Greeting<textarea name="chat_greeting" rows="3" maxlength="400">${esc(s.chat.greeting || '')}</textarea></label>
             <label>Messages allowed per visitor per hour<input type="number" name="chat_hourly" min="5" max="200" value="${esc(s.chat.hourly_limit ?? 30)}"></label>
@@ -761,7 +762,7 @@ const BIND = {
         { key: 'member_tabs', value: tabs },
         { key: 'photo_uploads', value: { enabled: f.photo_enabled.checked, max_mb: Math.min(15, Math.max(1, Number(f.photo_max.value) || 10)), note: f.photo_note.value.trim() } },
         { key: 'home', value: { announcements: f.home_ann.checked, announcement_count: Number(f.home_ann_n.value) || 3, events: f.home_ev.checked, event_count: Number(f.home_ev_n.value) || 4 } },
-        { key: 'chat', value: { ...(ctx.settings.chat || {}), enabled: f.chat_enabled.checked, greeting: f.chat_greeting.value.trim(), hourly_limit: Math.min(200, Math.max(5, Number(f.chat_hourly.value) || 30)) } },
+        { key: 'chat', value: { ...(ctx.settings.chat || {}), enabled: f.chat_enabled.checked, voice: f.chat_voice.checked, greeting: f.chat_greeting.value.trim(), hourly_limit: Math.min(200, Math.max(5, Number(f.chat_hourly.value) || 30)) } },
         { key: 'mitra_refs', value: { marthoma: f.refs_marthoma.checked, urls: refUrls(f.refs_urls.value) } }
       ].map((r) => ({ ...r, updated_at: new Date().toISOString() }));
       busy(f, true);
