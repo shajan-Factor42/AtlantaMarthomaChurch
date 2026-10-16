@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
 
     // ---------- Who it goes to ----------
     const [{ data: mems }, { data: subs }, { data: outs }] = await Promise.all([
-      admin.from("members").select("email, first_name, family:families(status)").not("email", "is", null),
+      admin.from("members").select("email, first_name, status, family:families(status)").not("email", "is", null),
       admin.from("newsletter_subscribers").select("email, name"),
       admin.from("newsletter_optouts").select("email"),
     ]);
@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     for (const m of mems || []) {
       const e = String(m.email).trim().toLowerCase();
       // deno-lint-ignore no-explicit-any
-      if (!EMAIL_RE.test(e) || (m as any).family?.status === "inactive" || optedOut.has(e) || list.has(e)) continue;
+      if (!EMAIL_RE.test(e) || (m as any).family?.status === "inactive" || ((m as any).status ?? "active") !== "active" || optedOut.has(e) || list.has(e)) continue;
       list.set(e, m.first_name || ""); memberCount++;
     }
     for (const s of subs || []) {

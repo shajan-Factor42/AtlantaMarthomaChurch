@@ -390,3 +390,20 @@ body.is-admin { background: #f3f5f8; }
 .gr-preview { width: 100%; height: min(70vh, 720px); border: 1px solid var(--line); border-radius: 10px; background: #f4efe7; }
 @media (max-width: 700px) { .gr-img { grid-template-columns: 1fr; } .gr-test { flex-wrap: wrap; } }
 .gr-test .btn { white-space: nowrap; }
+
+/* ---------- Portal Settings → ICON ---------- */
+.icon-controls { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin: .75rem 0; }
+.icon-controls label { display: grid; gap: .25rem; font-weight: 600; font-size: .9rem; }
+.icon-controls select, .icon-controls input { font: inherit; font-weight: 400; padding: .45rem .6rem; border: 1px solid #cdd8e4; border-radius: 8px; }
+.icon-controls input { width: 7rem; }
+#icon-progress { margin: .75rem 0 .25rem; height: 8px; }
+.icon-sum { margin: .75rem 0; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--tint); }
+.icon-sum__head { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.icon-sum .stat-row { margin-bottom: .5rem; }
+.icon-sum__notes { margin: .25rem 0 0; padding-left: 1.1rem; }
+.icon-sum__notes li { margin: .2rem 0; }
+.icon-toggles { margin-top: 1rem; }
+.icon-help { margin-top: 1rem; }
+.icon-help summary { cursor: pointer; font-weight: 600; color: var(--primary-deep); }
+.icon-help ol { margin: .5rem 0 0; padding-left: 1.2rem; }
+.icon-help li { margin: .3rem 0; }

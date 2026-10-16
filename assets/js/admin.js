@@ -364,15 +364,22 @@ const VIEWS = {
   },
 
   async giving() {
+    const iconRow = (await sb.from('portal_settings').select('value').eq('key', 'icon').maybeSingle()).data;
+    const fromIcon = !!(iconRow && iconRow.value && iconRow.value.giving_from_icon);
+    ctx.fromIcon = fromIcon;
     const fams = ok(await sb.from('families').select('id, family_name, member_number').order('family_name'));
-    const recent = ok(await sb.from('contributions').select('*, family:families(family_name)').order('created_at', { ascending: false }).limit(25));
+    const recent = ok(await sb.from('contributions').select('*, family:families(family_name)').order(fromIcon ? 'given_on' : 'created_at', { ascending: false }).limit(25));
     const y = new Date().getFullYear();
     const pledges = ok(await sb.from('pledges').select('*, family:families(family_name)').eq('year', y).order('amount', { ascending: false }));
     ctx.fams = fams; ctx.recent = recent; ctx.pledges = pledges;
     const famOpts = fams.map((f) => `<option value="${esc(f.id)}">${esc(f.family_name)}${f.member_number ? ' (' + esc(f.member_number) + ')' : ''}</option>`).join('');
     return `
       <div class="grid-2">
-        <section class="pcard">
+        ${fromIcon ? `<section class="pcard">
+          <h2>Gifts come from ICON</h2>
+          <p>Contributions and pledges are recorded in IconCMO and copied here every night, so each family’s giving statement in the portal matches ICON.</p>
+          <p class="muted small">To add or correct a gift, do it in ICON. It shows up here after the next sync — or right away with <strong>Sync now</strong> under Portal Settings → ICON.</p>
+        </section>` : `<section class="pcard">
           <h2>Record a contribution</h2>
           <form id="contrib-form" class="form form--flat">
             <label>Family<select name="family_id" required><option value="">Choose a family…</option>${famOpts}</select></label>
@@ -382,10 +389,10 @@ const VIEWS = {
             <button class="btn btn--primary" type="submit">Save contribution</button>
             <p class="form__msg" role="status"></p>
           </form>
-        </section>
+        </section>`}
         <section class="pcard">
-          <div class="pcard__head"><h2>${y} pledges</h2><button class="btn btn--outline btn--small" id="add-pledge">+ Set a pledge</button></div>
-          ${pledges.length ? `<div class="table-wrap"><table class="table table--compact"><tbody>${pledges.map((p) => `<tr><td>${esc(p.family?.family_name)}</td><td>${esc(p.category)}</td><td class="num">${money(p.amount)}</td><td class="row-actions"><button class="link-btn link-btn--danger" data-del-pledge="${p.id}">Remove</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No pledges recorded for this year.</p>'}
+          <div class="pcard__head"><h2>${y} pledges</h2>${fromIcon ? '<span class="pill">From ICON</span>' : '<button class="btn btn--outline btn--small" id="add-pledge">+ Set a pledge</button>'}</div>
+          ${pledges.length ? `<div class="table-wrap"><table class="table table--compact"><tbody>${pledges.map((p) => `<tr><td>${esc(p.family?.family_name)}</td><td>${esc(p.category)}</td><td class="num">${money(p.amount)}</td><td class="row-actions">${p.icon_id ? '' : `<button class="link-btn link-btn--danger" data-del-pledge="${p.id}">Remove</button>`}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No pledges recorded for this year.</p>'}
           <hr>
           <h3>Exports</h3>
           <div class="btn-row">
@@ -396,10 +403,10 @@ const VIEWS = {
         </section>
       </div>
       <section class="pcard">
-        <h2>Recently recorded</h2>
+        <h2>${fromIcon ? 'Latest gifts' : 'Recently recorded'}</h2>
         ${recent.length ? `<div class="table-wrap"><table class="table table--compact">
           <thead><tr><th>Date</th><th>Family</th><th>Category</th><th>Method</th><th>Ref.</th><th class="num">Amount</th><th></th></tr></thead>
-          <tbody>${recent.map((c) => `<tr><td>${date(c.given_on)}</td><td>${esc(c.family?.family_name)}</td><td>${esc(c.category)}</td><td>${val(c.method)}</td><td>${val(c.reference)}</td><td class="num">${money(c.amount)}</td><td class="row-actions"><button class="link-btn link-btn--danger" data-del-contrib="${c.id}">Delete</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">Nothing recorded yet.</p>'}
+          <tbody>${recent.map((c) => `<tr><td>${date(c.given_on)}</td><td>${esc(c.family?.family_name)}</td><td>${esc(c.category)}</td><td>${val(c.method)}</td><td>${val(c.reference)}</td><td class="num">${money(c.amount)}</td><td class="row-actions">${c.source === 'icon' ? '<span class="pill" title="Synced from ICON">ICON</span>' : `<button class="link-btn link-btn--danger" data-del-contrib="${c.id}">Delete</button>`}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">Nothing recorded yet.</p>'}
       </section>`;
   },
 
@@ -682,7 +689,7 @@ const BIND = {
   },
   giving() {
     const f = $('#contrib-form');
-    f.onsubmit = async (e) => {
+    if (f) f.onsubmit = async (e) => {
       e.preventDefault();
       const p = Object.fromEntries(new FormData(f));
       if (!p.family_id || !p.amount) return msg(f, 'Choose a family and enter an amount.', true);
@@ -693,7 +700,8 @@ const BIND = {
         await show('giving');
       } catch (err) { msg(f, friendly(err), true); busy(f, false); }
     };
-    $('#add-pledge').onclick = () => dialog('Set a pledge', `
+    const addPledge = $('#add-pledge');
+    if (addPledge) addPledge.onclick = () => dialog('Set a pledge', `
       <label>Family<select name="family_id" required><option value="">Choose a family…</option>${ctx.fams.map((x) => `<option value="${esc(x.id)}">${esc(x.family_name)}</option>`).join('')}</select></label>
       <div class="row-3"><label>Year<input type="number" name="year" value="${new Date().getFullYear()}" required></label><label>Category<select name="category">${GIVING_CATEGORIES.map((c) => `<option>${c}</option>`).join('')}</select></label><label>Amount ($)<input type="number" name="amount" min="0" step="0.01" required></label></div>`,
       async (v) => { ok(await sb.from('pledges').upsert({ family_id: v.family_id, year: Number(v.year), category: v.category, amount: Number(v.amount) }, { onConflict: 'family_id,year,category' })); toast('Pledge saved'); await show('giving'); });
@@ -1503,7 +1511,7 @@ async function nlEditorView() {
       sb.from('portal_settings').select('value').eq('key', 'worship').maybeSingle(),
       sb.from('worship_services').select('*').gte('day', s).lte('day', e),
       sb.from('ref_lectionary').select('day, title, lessons, epistle_gospel').gte('day', s).lte('day', e),
-      sb.from('members').select('id, first_name, last_name, date_of_birth, wedding_date, family_id, relationship, family:families(status)'),
+      sb.from('members').select('id, first_name, last_name, date_of_birth, wedding_date, family_id, relationship, status, family:families(status)'),
       sb.from('photo_submissions').select('id, storage_path, caption, event_name, created_at').eq('status', 'approved').gte('created_at', new Date(glimpseFrom + 'T00:00:00').toISOString()).order('created_at', { ascending: false }).limit(60)
     ]);
     const pattern = { ...WORSHIP_DEFAULT, ...((wr.data && wr.data.value) || {}) };
@@ -1530,7 +1538,7 @@ async function nlEditorView() {
     }
     // Birthdays & anniversaries from the register (editable text)
     const inPeriod = (md) => { const months = new Set(); for (let d = new Date(s + 'T12:00:00'); ymd(d) <= e; d.setDate(d.getDate() + 1)) months.add(ymd(d).slice(5)); return months.has(md); };
-    const active = (ok(mr) || []).filter((m) => !m.family || m.family.status !== 'inactive');
+    const active = (ok(mr) || []).filter((m) => (!m.family || m.family.status !== 'inactive') && (m.status || 'active') === 'active');
     const byDay = (list) => { const g = {}; list.forEach(([day, name]) => (g[day] ||= []).push(name)); return Object.keys(g).map(Number).sort((a, b) => a - b).map((d) => `${d}: ${g[d].join('; ')}`).join('\n'); };
     const bdays = active.filter((m) => m.date_of_birth && inPeriod(m.date_of_birth.slice(5))).sort((a, b) => a.date_of_birth.slice(5).localeCompare(b.date_of_birth.slice(5)))
       .map((m) => [Number(m.date_of_birth.slice(8, 10)), `${m.first_name} ${m.last_name}`]);
@@ -2048,3 +2056,154 @@ BIND.greetings = function () {
     };
   });
 };
+
+
+/* ---------------------------------------------------------------------
+   ICON (IconCMO) connection — Portal Settings, admins only.
+   Pull → staging → merge; "Preview" rolls the merge back and reports.
+--------------------------------------------------------------------- */
+async function iconCall(body) {
+  const { data, error } = await sb.functions.invoke('icon-sync', { body });
+  if (error) {
+    let m = error.message;
+    try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) { /* keep */ }
+    throw new Error(m);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+const n0 = (v) => Number(v || 0).toLocaleString('en-US');
+function iconSummaryHtml(s) {
+  if (!s) return '';
+  const h = s.households || {}, m = s.members || {}, c = s.contributions || {};
+  return `<div class="icon-sum">
+    <div class="icon-sum__head">${s.dry_run ? '<span class="pill">Preview — nothing was changed</span>' : '<span class="pill pill--both">Synced</span>'} ${s.source === 'test' ? '<span class="pill">ICON test database</span>' : ''}</div>
+    <div class="stat-row">
+      <div class="stat"><strong>${n0(h.new)}</strong><span>new families</span><small>${n0(h.updated)} updated</small></div>
+      <div class="stat"><strong>${n0(m.new)}</strong><span>new members</span><small>${n0(m.updated)} updated${m.marked_inactive ? ` · ${n0(m.marked_inactive)} now inactive` : ''}</small></div>
+      <div class="stat"><strong>${n0(c.new)}</strong><span>new gifts</span><small>${n0(c.changed)} changed · ${n0(c.removed)} removed</small></div>
+    </div>
+    <ul class="small icon-sum__notes">
+      <li>Gifts ${c.from ? `${esc(date(c.from))} – ${esc(date(c.to))}` : ''}: ${money(c.total_amount || 0)} in total; ${n0(s.pledges)} pledges.</li>
+      ${c.no_household ? `<li class="warn">${n0(c.no_household)} gifts belong to households that aren’t in ICON’s household list (for example deleted households) and were left out.</li>` : ''}
+      ${m.emails_not_changed ? `<li>${n0(m.emails_not_changed)} members kept their portal email: either they already sign in with a different one, or another member already uses that address (e.g. a shared family email).</li>` : ''}
+      ${(h.examples_new || []).length ? `<li class="muted">New families include: ${(h.examples_new || []).map(esc).join(', ')}…</li>` : ''}
+    </ul>
+  </div>`;
+}
+
+function iconCardHtml() {
+  return `<section class="pcard" id="icon-card">
+    <div class="pcard__head"><div><h2>ICON (IconCMO)</h2>
+      <p class="muted small">Copies families, members (with birthdays and anniversaries) and giving from ICON into the portal. It only reads from ICON — nothing in ICON is ever changed. Each family still sees only its own giving.</p></div></div>
+    <div id="icon-status" class="muted small">Checking…</div>
+    <div class="icon-controls">
+      <label>Data from<select id="icon-source"><option value="test">ICON test database (sample data)</option><option value="live">Our church’s ICON</option></select></label>
+      <label>Gift history from<input type="number" id="icon-start" min="2000" max="2100" step="1"></label>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn--outline btn--small" id="icon-test">Check connection</button>
+      <button class="btn btn--outline btn--small" id="icon-preview">Preview sync</button>
+      <button class="btn btn--primary btn--small" id="icon-sync">Sync now</button>
+    </div>
+    <div class="progress" id="icon-progress" hidden><i></i></div>
+    <p class="small" id="icon-msg" role="status"></p>
+    <div id="icon-result"></div>
+    <div class="toggles icon-toggles">
+      <label class="toggle"><input type="checkbox" id="icon-nightly"><span>Sync every night (about 3 AM)</span></label>
+      <label class="toggle"><input type="checkbox" id="icon-giving"><span>Giving comes from ICON — hide manual entry in Admin → Giving</span></label>
+    </div>
+    <details class="icon-help"><summary>How to connect the church’s ICON account</summary>
+      <ol class="small">
+        <li>In ICON, go to <strong>Web-Services → Setup → Web Service Security</strong> and create a user just for the website (for example <em>website-sync</em>).</li>
+        <li>Give it <strong>Read</strong> permission only, for Membership (households, members) and Contributions (posted, pledges). No create, update or delete.</li>
+        <li>Add three secrets in Supabase → Edge Functions → Secrets: <code>ICON_PHONE</code> (the church’s ICON phone number), <code>ICON_USERNAME</code>, <code>ICON_PASSWORD</code>.</li>
+        <li>Choose “Our church’s ICON”, press <strong>Check connection</strong>, then <strong>Preview sync</strong> and look over the numbers before <strong>Sync now</strong>.</li>
+      </ol></details>
+    <div id="icon-runs"></div>
+  </section>`;
+}
+
+function bindIcon() {
+  const status = $('#icon-status'), src = $('#icon-source'), start = $('#icon-start'), out = $('#icon-msg'), bar = $('#icon-progress'), res = $('#icon-result');
+  const btns = ['#icon-test', '#icon-preview', '#icon-sync'].map((x) => $(x));
+  let st = null;
+  const nowY = new Date().getFullYear();
+  async function refresh() {
+    try {
+      st = await iconCall({ action: 'status' });
+      const S = st.settings || {};
+      status.innerHTML = st.live_configured ? '<span class="ok-text">Church ICON login added ✓</span>' : 'The church’s ICON login hasn’t been added yet — you can try everything with ICON’s test database meanwhile.';
+      src.querySelector('option[value=live]').disabled = !st.live_configured;
+      if (!st.live_configured) src.value = 'test';
+      start.value = S.start_year || nowY - 3;
+      $('#icon-nightly').checked = !!S.enabled; $('#icon-nightly').disabled = !st.live_configured;
+      $('#icon-giving').checked = !!S.giving_from_icon;
+      syncBtnState();
+      const runs = st.runs || [];
+      $('#icon-runs').innerHTML = runs.length ? `<h3 class="nl-h">Recent runs</h3><div class="table-wrap"><table class="table table--compact"><tbody>${runs.map((r) => `<tr>
+        <td class="nowrap">${esc(new Date(r.started_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td>
+        <td>${r.dry_run ? 'Preview' : 'Sync'} · ${r.source === 'test' ? 'test data' : 'church ICON'} · ${esc(r.trigger)}</td>
+        <td>${r.ok === false ? `<span class="warn">Failed: ${esc((r.error || '').slice(0, 120))}</span>` : r.ok ? `${n0(r.summary?.members?.new)} new members · ${n0(r.summary?.contributions?.new)} new gifts` : '<span class="muted">Running…</span>'}</td></tr>`).join('')}</tbody></table></div>` : '';
+    } catch (e) { status.innerHTML = `<span class="warn">${esc(friendly(e))}</span>`; }
+  }
+  const syncBtnState = () => { $('#icon-sync').disabled = src.value !== 'live'; $('#icon-sync').title = src.value !== 'live' ? 'Test data is only ever previewed' : ''; };
+  src.onchange = syncBtnState;
+  const saveIcon = async (patch) => {
+    const cur = (st && st.settings) || {};
+    const value = { ...cur, ...patch };
+    ok(await sb.from('portal_settings').upsert({ key: 'icon', value, updated_at: new Date().toISOString() }, { onConflict: 'key' }));
+    if (st) st.settings = value;
+  };
+  $('#icon-nightly').onchange = async (e) => { try { await saveIcon({ enabled: e.target.checked }); toast(e.target.checked ? 'ICON will sync every night' : 'Nightly ICON sync turned off'); } catch (err) { e.target.checked = !e.target.checked; toast(friendly(err), true); } };
+  $('#icon-giving').onchange = async (e) => { try { await saveIcon({ giving_from_icon: e.target.checked }); toast(e.target.checked ? 'Admin → Giving now shows ICON as the source' : 'Manual giving entry is back'); } catch (err) { e.target.checked = !e.target.checked; toast(friendly(err), true); } };
+  start.onchange = () => saveIcon({ start_year: Math.max(2000, Math.min(nowY, Number(start.value) || nowY - 3)) }).catch(() => {});
+
+  const busyAll = (on) => btns.forEach((b) => (b.disabled = on || (b.id === 'icon-sync' && src.value !== 'live')));
+  $('#icon-test').onclick = async () => {
+    busyAll(true); out.textContent = 'Signing in to ICON…'; res.innerHTML = '';
+    try {
+      const r = await iconCall({ action: 'test', source: src.value });
+      out.innerHTML = `<span class="ok-text">Connected.</span> ${n0(r.households)} households; ${typeof r.gifts_this_year === 'number' ? `${n0(r.gifts_this_year)} gifts so far this year` : esc(String(r.gifts_this_year))}. ICON role: ${esc(r.role || '?')}.`
+        + (r.permissions && (r.permissions.update || r.permissions.delete) && src.value === 'live' ? ' <span class="warn">This ICON user can also change data — for safety, give it read-only permission in ICON.</span>' : '');
+    } catch (e) { out.innerHTML = `<span class="warn">${esc(friendly(e))}</span>`; }
+    busyAll(false);
+  };
+  async function run(dry) {
+    const source = src.value;
+    const from = source === 'test' ? nowY : Math.max(2000, Number(start.value) || nowY - 3);   // test data: this year only
+    busyAll(true); bar.hidden = false; res.innerHTML = '';
+    const step = (t, pct) => { out.textContent = t; $('i', bar).style.width = `${pct}%`; };
+    try {
+      step('Getting ready…', 3);
+      await iconCall({ action: 'pull', source, part: 'start' });
+      step('Reading families and members from ICON…', 10);
+      const mem = await iconCall({ action: 'pull', source, part: 'membership' });
+      const years = []; for (let y = from; y <= nowY; y++) years.push(y);
+      let staged = 0;
+      for (let i = 0; i < years.length; i++) {
+        let next = 0;
+        do {
+          step(`Reading ${years[i]} gifts… (${n0(staged)} so far)`, 15 + Math.round((i / years.length) * 70));
+          const r = await iconCall({ action: 'pull', source, part: 'contributions', year: years[i], startAt: next });
+          staged += r.staged; next = r.next;
+        } while (next > 0);
+      }
+      step(dry ? `Working out what would change (${n0(mem.households)} households, ${n0(staged)} gifts)…` : 'Updating the portal…', 90);
+      const r = await iconCall({ action: 'merge', source, from: `${from}-01-01`, to: `${nowY}-12-31`, dry });
+      step(dry ? 'Preview ready — nothing has been changed.' : 'Done.', 100);
+      res.innerHTML = iconSummaryHtml(r.summary);
+      if (!dry) toast('ICON sync finished');
+    } catch (e) { out.innerHTML = `<span class="warn">Stopped: ${esc(friendly(e))}</span>`; }
+    bar.hidden = true; busyAll(false); refresh();
+  }
+  $('#icon-preview').onclick = () => run(true);
+  $('#icon-sync').onclick = () => confirmDialog('Sync from ICON now?', 'Families, members, gifts and pledges in the portal will be updated to match ICON. Run “Preview sync” first if you haven’t yet.', async () => { setTimeout(() => run(false), 0); }, 'Sync now');
+  refresh();
+}
+
+{
+  const viewSettings = VIEWS.settings, bindSettings = BIND.settings;
+  VIEWS.settings = async function () { const html = await viewSettings.call(VIEWS); return isAdmin() ? html + iconCardHtml() : html; };
+  BIND.settings = function () { if (bindSettings) bindSettings.call(BIND); if (isAdmin() && $('#icon-card')) bindIcon(); };
+}

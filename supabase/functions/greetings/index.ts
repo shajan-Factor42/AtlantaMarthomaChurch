@@ -44,12 +44,12 @@ type Item = {
 // deno-lint-ignore no-explicit-any
 async function celebrations(admin: any, from: string, to: string): Promise<Item[]> {
   const [{ data: mems }, { data: outs }] = await Promise.all([
-    admin.from("members").select("id, first_name, last_name, email, date_of_birth, wedding_date, family_id, relationship, family:families(status, family_name)"),
+    admin.from("members").select("id, first_name, last_name, email, date_of_birth, wedding_date, family_id, relationship, status, family:families(status, family_name)"),
     admin.from("greeting_optouts").select("email"),
   ]);
   const opted = new Set((outs || []).map((o: { email: string }) => o.email.toLowerCase()));
   // deno-lint-ignore no-explicit-any
-  const members = (mems || []).filter((m: any) => !m.family || m.family.status !== "inactive");
+  const members = (mems || []).filter((m: any) => (!m.family || m.family.status !== "inactive") && (m.status ?? "active") === "active");
   // deno-lint-ignore no-explicit-any
   const byFamily = new Map<string, any[]>();
   for (const m of members) if (m.family_id) (byFamily.get(m.family_id) || byFamily.set(m.family_id, []).get(m.family_id))!.push(m);
