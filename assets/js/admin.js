@@ -246,7 +246,7 @@ const ctx = { familyId: null, photoFilter: 'pending', familyQuery: '' };
 
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
-  if (b) { if (b.dataset.tab === 'newsletters') ctx.nlId = null; if (b.dataset.tab === 'members') { ctx.familyId = null; if (ctx.membersMode === 'upload') { ctx.membersMode = 'families'; ctx.dirPlan = null; } } show(b.dataset.tab); }
+  if (b) { if (b.dataset.tab === 'newsletters') ctx.nlId = null; if (b.dataset.tab === 'newmembers') ctx.nmId = null; if (b.dataset.tab === 'members') { ctx.familyId = null; if (ctx.membersMode === 'upload') { ctx.membersMode = 'families'; ctx.dirPlan = null; } } show(b.dataset.tab); }
 });
 
 async function show(tab) {
@@ -259,6 +259,7 @@ async function show(tab) {
   window.scrollTo(0, y);
   if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
   refreshPhotoCount();
+  if (typeof refreshNmCount === 'function') refreshNmCount();
 }
 
 async function refreshPhotoCount() {
@@ -2311,3 +2312,156 @@ async function loadZeffyPayments() {
   VIEWS.settings = async function () { const html = await viewSettings.call(VIEWS); return isAdmin() ? html + zeffyCardHtml() : html; };
   BIND.settings = function () { if (bindSettings) bindSettings.call(BIND); if (isAdmin() && $('#zeffy-card')) bindZeffy(); };
 }
+
+/* ---------------------------------------------------------------------
+   New Members: requests from the website form
+--------------------------------------------------------------------- */
+const NM_STATUS = { new: 'New', contacted: 'Contacted', added: 'Added to register', declined: 'Closed' };
+const nmName = (r) => `${r.first_name} ${r.last_name}`;
+const nmWhen = (iso) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+const TRANSFER = { yes: 'Has a transfer letter', requested: 'Has asked for one', no: 'Not yet', unsure: 'Not sure / not needed' };
+
+async function refreshNmCount() {
+  try {
+    const { count } = await sb.from('new_member_requests').select('id', { count: 'exact', head: true }).eq('status', 'new');
+    const el = $('#nm-count'); if (el) { el.textContent = count || ''; el.hidden = !count; }
+  } catch (e) { /* ignore */ }
+}
+
+VIEWS.newmembers = async function () {
+  const rows = ok(await sb.from('new_member_requests').select('*').order('created_at', { ascending: false }).limit(500));
+  ctx.nmRows = rows;
+  refreshNmCount();
+  if (ctx.nmId) {
+    const r = rows.find((x) => x.id === ctx.nmId);
+    if (r) return nmDetail(r);
+    ctx.nmId = null;
+  }
+  const filter = ctx.nmFilter || 'new';
+  const shown = rows.filter((r) => filter === 'all' || r.status === filter);
+  const { data: cfgRow } = await sb.from('portal_settings').select('value').eq('key', 'new_members').maybeSingle();
+  const cfg = { enabled: true, recipients: ['vicar@mtcatlanta.org', 'secretary@mtcatlanta.org'], ...((cfgRow && cfgRow.value) || {}) };
+  const emailOff = rows.length && rows.every((r) => r.email_status === 'not configured');
+  const failed = rows.find((r) => r.email_status && r.email_status.startsWith('failed'));
+  return `
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>New member requests</h2>
+        <p class="muted small">From the <a href="../new-members/" target="_blank" rel="noopener">New Members form</a> on the website. Each request is emailed to ${esc(cfg.recipients.join(' and '))}.</p></div></div>
+      ${emailOff ? '<div class="notice">Email notifications aren’t switched on yet, so requests are only saved here. See “Email notifications” below.</div>' : ''}
+      ${!emailOff && failed ? `<div class="notice notice--error">The last email notification failed: ${esc(failed.email_status.slice(8))}</div>` : ''}
+      <div class="seg" role="tablist">${[['new', 'New'], ['contacted', 'Contacted'], ['added', 'Added'], ['declined', 'Closed'], ['all', 'All']].map(([k, l]) => `<button data-nmf="${k}" aria-selected="${k === filter}">${l} <span class="muted">${k === 'all' ? rows.length : rows.filter((r) => r.status === k).length}</span></button>`).join('')}</div>
+      ${shown.length ? `<div class="table-wrap"><table class="table">
+        <thead><tr><th>Received</th><th>Name</th><th class="hide-sm">Family</th><th>Status</th><th></th></tr></thead>
+        <tbody>${shown.map((r) => `<tr>
+          <td class="nowrap">${esc(nmWhen(r.created_at))}</td>
+          <td><strong>${esc(nmName(r))}</strong><br><small class="muted">${esc(r.email)} · ${esc(r.phone || '')}</small></td>
+          <td class="hide-sm">${(r.family || []).length ? esc((r.family || []).map((f) => f.first_name).join(', ')) : '<span class="muted">—</span>'}</td>
+          <td><span class="pill pill--nm-${r.status}">${NM_STATUS[r.status]}</span></td>
+          <td class="row-actions"><button class="link-btn" data-nmopen="${r.id}">Open</button></td></tr>`).join('')}</tbody>
+      </table></div>` : `<p class="empty">${filter === 'new' ? 'No new requests. When someone fills in the New Members form it appears here.' : 'Nothing here.'}</p>`}
+    </section>
+    <section class="pcard">
+      <h2>Email notifications</h2>
+      <form id="nm-settings" class="form form--flat">
+        <label>Send each request to <small class="muted">— one email address per line</small><textarea name="recipients" rows="3" ${isAdmin() ? '' : 'disabled'}>${esc(cfg.recipients.join('\n'))}</textarea></label>
+        <label class="toggle"><input type="checkbox" name="enabled" ${cfg.enabled !== false ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}><span>Accept new member forms on the website</span></label>
+        ${isAdmin() ? '<div><button class="btn btn--primary" type="submit">Save</button><p class="form__msg" role="status"></p></div>' : '<p class="muted small">Only an admin can change these.</p>'}
+        <p class="muted small">Emails are sent through the same service as newsletters and greetings, so they start working once that is set up (a Resend account with mtcatlanta.org verified, and its key saved in Supabase as RESEND_API_KEY). Requests are always saved here either way.</p>
+      </form>
+    </section>`;
+};
+
+function nmDetail(r) {
+  const fam = r.family || [];
+  const addr = [r.address_line1, r.address_line2, [r.city, r.state].filter(Boolean).join(', ') + (r.zip ? ' ' + r.zip : '')].filter((x) => x && x.trim()).join('\n');
+  const kv = (k, v) => `<div class="kv"><dt>${k}</dt><dd>${v ? esc(v) : '<span class="muted">—</span>'}</dd></div>`;
+  return `
+    <button class="link-btn back" id="nm-back">← All requests</button>
+    <div class="grid-2 grid-2--wide-left nm-detail">
+      <section class="pcard">
+        <div class="pcard__head"><h2>${esc(nmName(r))}</h2><span class="pill pill--nm-${r.status}">${NM_STATUS[r.status]}</span></div>
+        <p class="muted small">Received ${esc(nmWhen(r.created_at))}${r.email_status ? ` · Email to staff: ${esc(r.email_status)}` : ''}</p>
+        <dl class="kvs">
+          <div class="kv"><dt>Email</dt><dd><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></dd></div>
+          <div class="kv"><dt>Phone</dt><dd>${r.phone ? `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>` : '—'}</dd></div>
+          ${kv('Address', addr)}
+          ${kv('Home parish (India)', r.home_parish)}
+          ${kv('Most recent parish', r.previous_parish)}
+          ${kv('Transfer letter', TRANSFER[r.transfer_letter] || '')}
+          ${kv('Moved to Atlanta', r.moved_on ? date(r.moved_on) : '')}
+          ${kv('Wedding date', r.wedding_date ? date(r.wedding_date) : '')}
+          ${kv('Interested in', (r.organizations || []).join(', '))}
+          ${kv('Heard about us', r.heard_from)}
+          ${kv('Message', r.message)}
+        </dl>
+      </section>
+      <div>
+        <section class="pcard">
+          <h2>Family</h2>
+          <ul class="nm-fam">
+            <li><strong>${esc(nmName(r))}</strong> <span class="muted">— Head</span></li>
+            ${fam.map((f) => `<li>${esc(f.first_name)} ${esc(f.last_name || r.last_name)} <span class="muted">— ${esc(f.relationship)}${f.date_of_birth ? `, born ${esc(date(f.date_of_birth))}` : ''}</span></li>`).join('')}
+          </ul>
+        </section>
+        <section class="pcard">
+          <h2>Follow-up</h2>
+          <form id="nm-notes" class="form form--flat">
+            <label>Notes for the office <small class="muted">— only officers see these</small><textarea name="staff_notes" rows="4">${esc(r.staff_notes || '')}</textarea></label>
+            <div class="btn-row">
+              <button class="btn btn--outline btn--small" type="submit">Save notes</button>
+              ${r.status !== 'contacted' && r.status !== 'added' ? '<button class="btn btn--outline btn--small" type="button" data-nmstatus="contacted">Mark as contacted</button>' : ''}
+              ${r.status !== 'added' ? '<button class="btn btn--primary btn--small" type="button" id="nm-add">Add family to the parish register</button>' : `<button class="btn btn--primary btn--small" type="button" id="nm-open-family">Open family record</button>`}
+              ${r.status !== 'declined' && r.status !== 'added' ? '<button class="link-btn link-btn--danger" type="button" data-nmstatus="declined">Close request</button>' : ''}
+              ${r.status === 'declined' ? '<button class="link-btn" type="button" data-nmstatus="new">Reopen</button>' : ''}
+            </div>
+            <p class="form__msg" role="status"></p>
+          </form>
+        </section>
+      </div>
+    </div>`;
+}
+
+BIND.newmembers = function () {
+  $$('[data-nmf]', view).forEach((b) => (b.onclick = () => { ctx.nmFilter = b.dataset.nmf; show('newmembers'); }));
+  $$('[data-nmopen]', view).forEach((b) => (b.onclick = () => { ctx.nmId = b.dataset.nmopen; show('newmembers'); }));
+  const back = $('#nm-back'); if (back) back.onclick = () => { ctx.nmId = null; show('newmembers'); };
+  const r = ctx.nmId && ctx.nmRows.find((x) => x.id === ctx.nmId);
+  const stamp = () => ({ handled_by: me.id, handled_at: new Date().toISOString() });
+  const notes = $('#nm-notes');
+  if (notes && r) {
+    notes.onsubmit = async (e) => { e.preventDefault(); ok(await sb.from('new_member_requests').update({ staff_notes: notes.staff_notes.value.trim() || null }).eq('id', r.id)); toast('Notes saved'); };
+    $$('[data-nmstatus]', notes).forEach((b) => (b.onclick = async () => {
+      ok(await sb.from('new_member_requests').update({ status: b.dataset.nmstatus, staff_notes: notes.staff_notes.value.trim() || null, ...stamp() }).eq('id', r.id));
+      toast(b.dataset.nmstatus === 'declined' ? 'Request closed' : b.dataset.nmstatus === 'new' ? 'Reopened' : 'Marked as contacted'); await show('newmembers');
+    }));
+    const add = $('#nm-add');
+    if (add) add.onclick = () => {
+      const fam = r.family || [];
+      const spouse = fam.find((f) => f.relationship === 'Spouse');
+      const familyName = `${r.last_name}, ${r.first_name}${spouse ? ' & ' + spouse.first_name : ''}`;
+      confirmDialog('Add this family to the parish register?', `This creates the family <strong>${esc(familyName)}</strong> with ${fam.length + 1} ${fam.length ? 'people' : 'person'}. You can edit everything afterwards, and invite them to the member portal from their family page.`, async () => {
+        const f = ok(await sb.from('families').insert({
+          family_name: familyName, address_line1: r.address_line1, address_line2: r.address_line2, city: r.city, state: r.state, zip: r.zip,
+          home_phone: null, home_parish: r.home_parish, member_since: todayIso(), status: 'active'
+        }).select('id').single());
+        const people = [{ family_id: f.id, first_name: r.first_name, last_name: r.last_name, relationship: 'Head', email: r.email, mobile_phone: r.phone, wedding_date: r.wedding_date }]
+          .concat(fam.map((p) => ({ family_id: f.id, first_name: p.first_name, last_name: p.last_name || r.last_name, relationship: p.relationship || 'Other', date_of_birth: p.date_of_birth || null, wedding_date: p.relationship === 'Spouse' ? r.wedding_date : null })));
+        ok(await sb.from('members').insert(people));
+        ok(await sb.from('new_member_requests').update({ status: 'added', family_id: f.id, staff_notes: notes.staff_notes.value.trim() || null, ...stamp() }).eq('id', r.id));
+        toast('Family added to the register');
+        ctx.nmId = null; ctx.familyId = f.id; ctx.membersMode = 'families'; show('members');
+      });
+    };
+    const open = $('#nm-open-family');
+    if (open) open.onclick = () => { if (!r.family_id) return toast('The family record was removed.'); ctx.nmId = null; ctx.familyId = r.family_id; ctx.membersMode = 'families'; show('members'); };
+  }
+  const sf = $('#nm-settings');
+  if (sf && isAdmin()) sf.onsubmit = async (e) => {
+    e.preventDefault();
+    const recipients = [...new Set(sf.recipients.value.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x)))].slice(0, 10);
+    if (!recipients.length) return msg(sf, 'Enter at least one email address.', true);
+    busy(sf, true);
+    try { ok(await sb.from('portal_settings').upsert({ key: 'new_members', value: { recipients, enabled: sf.enabled.checked }, updated_at: new Date().toISOString() }, { onConflict: 'key' })); toast('Saved'); await show('newmembers'); }
+    catch (err) { msg(sf, friendly(err), true); } finally { busy(sf, false); }
+  };
+};

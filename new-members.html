@@ -1,0 +1,108 @@
+---
+layout: default
+title: New Members
+permalink: /new-members/
+description: Join the parish family of Mar Thoma Church, Atlanta. Fill in the new member form and the Vicar and Parish Secretary will be in touch.
+---
+{% assign v = site.data.leadership.vicar %}
+{% assign c = site.data.church %}
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">New Members</p>
+    <h1>Join our parish family</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap nm">
+    <aside class="nm__intro">
+      <h2>Welcome!</h2>
+      <p>Whether you have just moved to Atlanta or have been worshipping with us for a while, we would be glad to welcome you and your family as members of {{ c.name }}.</p>
+      <h3>What happens next</h3>
+      <ol class="nm__steps">
+        <li><strong>Fill in the form.</strong> It goes straight to Achen ({{ v.name }}) and our Parish Secretary.</li>
+        <li><strong>Achen will get in touch</strong> to welcome you and arrange a time to meet.</li>
+        <li><strong>Moving from another Mar Thoma parish?</strong> Please ask your previous Vicar for a membership transfer letter.</li>
+        <li><strong>Your family is added to the parish register</strong> and you’ll receive access to the member portal.</li>
+      </ol>
+      <p class="nm__contact">Questions? Call Achen at <a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a> or email <a href="mailto:{{ v.email }}">{{ v.email }}</a>.</p>
+    </aside>
+
+    <form class="nm-form" id="new-member-form" novalidate>
+      <fieldset>
+        <legend>About you</legend>
+        <div class="nm-row nm-row--2">
+          <label>First name *<input name="first_name" autocomplete="given-name" required maxlength="80"></label>
+          <label>Last name *<input name="last_name" autocomplete="family-name" required maxlength="80"></label>
+        </div>
+        <div class="nm-row nm-row--2">
+          <label>Email *<input type="email" name="email" autocomplete="email" required maxlength="160"></label>
+          <label>Phone *<input type="tel" name="phone" autocomplete="tel" required maxlength="40"></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Home address</legend>
+        <label>Street address<input name="address_line1" autocomplete="address-line1" maxlength="160"></label>
+        <label>Apartment, suite, etc. <span class="opt">(optional)</span><input name="address_line2" autocomplete="address-line2" maxlength="160"></label>
+        <div class="nm-row nm-row--3">
+          <label>City<input name="city" autocomplete="address-level2" maxlength="80"></label>
+          <label>State<input name="state" autocomplete="address-level1" maxlength="2" value="GA"></label>
+          <label>ZIP<input name="zip" autocomplete="postal-code" inputmode="numeric" maxlength="10"></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Your family</legend>
+        <p class="nm-help">Add your spouse, children and anyone else in your household who will be joining.</p>
+        <div class="nm-family" id="nm-family"></div>
+        <button type="button" class="btn btn--outline btn--small" id="nm-add-person">+ Add a family member</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Church background</legend>
+        <div class="nm-row nm-row--2">
+          <label>Home parish in India <span class="opt">(and diocese)</span><input name="home_parish" maxlength="200" placeholder="e.g. St. Thomas MTC, Kozhencherry — Thiruvalla Diocese"></label>
+          <label>Most recent parish <span class="opt">(if different)</span><input name="previous_parish" maxlength="200" placeholder="e.g. Mar Thoma Church of Dallas"></label>
+        </div>
+        <div class="nm-row nm-row--3">
+          <label>Transfer letter<select name="transfer_letter">
+            <option value="">Choose…</option><option value="yes">I have one</option><option value="requested">I’ve asked for one</option><option value="no">Not yet</option><option value="unsure">Not sure / not needed</option></select></label>
+          <label>Moved to Atlanta <span class="opt">(approx.)</span><input type="date" name="moved_on"></label>
+          <label>Wedding date <span class="opt">(optional)</span><input type="date" name="wedding_date"></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Getting involved <span class="opt">(optional)</span></legend>
+        <div class="nm-checks">
+          {% for o in site.data.organizations %}<label class="nm-check"><input type="checkbox" name="organizations" value="{{ o.name }}"> {{ o.name }}</label>{% endfor %}
+          <label class="nm-check"><input type="checkbox" name="organizations" value="Youth Fellowship"> Youth Fellowship</label>
+          <label class="nm-check"><input type="checkbox" name="organizations" value="Prayer groups"> Prayer groups</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Anything else?</legend>
+        <label>Message for Achen <span class="opt">(optional)</span><textarea name="message" rows="4" maxlength="2000" placeholder="Anything you’d like us to know — prayer requests, best time to call, questions…"></textarea></label>
+        <label>How did you hear about us? <span class="opt">(optional)</span><input name="heard_from" maxlength="200"></label>
+        <label class="nm-hp" aria-hidden="true">Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label>
+      </fieldset>
+
+      <p class="nm-privacy">Your details are sent only to the Vicar and the Parish Secretary and kept in the parish office’s records.</p>
+      <div class="nm-submit">
+        <button class="btn btn--gold" type="submit">Send to Achen &amp; the Secretary</button>
+        <p class="nm-msg" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+
+    <div class="nm-done" id="nm-done" hidden tabindex="-1">
+      <p class="eyebrow">Thank you</p>
+      <h2>We’ve received your form</h2>
+      <p>Thank you, <span data-nm-name></span>! Achen and our Parish Secretary have your details and will be in touch soon. We look forward to welcoming your family.</p>
+      <p class="btn-row-inline"><a class="btn btn--primary" href="{{ '/worship/' | relative_url }}">Sunday worship</a> <a class="btn btn--outline" href="{{ '/events/' | relative_url }}">Upcoming events</a></p>
+    </div>
+  </div>
+</section>
+
+<script src="{{ '/assets/js/new-member.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>

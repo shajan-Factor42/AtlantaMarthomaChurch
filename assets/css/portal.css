@@ -426,3 +426,12 @@ body.is-admin { background: #f3f5f8; }
 .zf-hook code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--tint); border: 1px solid var(--line); border-radius: 8px; padding: .45rem .6rem; font-size: .82rem; }
 .zf-match { font: inherit; font-size: .85rem; padding: .25rem .4rem; border: 1px solid #cdd8e4; border-radius: 6px; max-width: 14rem; }
 .view > * { min-width: 0; }   /* let wide tables scroll inside their card instead of widening the page on phones */
+
+/* New Members */
+.pill--nm-new { background: var(--gold-soft); color: var(--primary-deep); border-color: var(--gold-soft); }
+.pill--nm-contacted { background: #e8eef6; color: #2f4a68; border-color: #ccd8e8; }
+.pill--nm-added { background: #e6f2ea; color: #2f6b3a; border-color: #c9e3d1; }
+.pill--nm-declined { background: #f1f1f1; color: #666; border-color: #e2e2e2; }
+.nm-fam { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.nm-detail { align-items: start; } @media (max-width: 860px) { .nm-detail { grid-template-columns: 1fr; } }

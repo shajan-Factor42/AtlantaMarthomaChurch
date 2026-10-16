@@ -407,3 +407,42 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
 .give__side { display: grid; gap: 1.25rem; }
 .give__side .panel h2 { margin-top: 0; }
 @media (max-width: 860px) { .give { grid-template-columns: 1fr; } .give__embed iframe { height: 1250px; } }
+
+/* ---------- New Members form ---------- */
+.nm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.9fr); gap: 2.5rem; align-items: start; }
+@media (max-width: 900px) { .nm { grid-template-columns: 1fr; } }
+.nm__intro { position: sticky; top: 1.5rem; }
+@media (max-width: 900px) { .nm__intro { position: static; } }
+.nm__steps { padding-left: 1.2rem; display: grid; gap: .6rem; }
+.nm__contact { color: var(--muted); }
+.nm-form, .nm-done { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.75rem 2rem; }
+@media (max-width: 560px) { .nm-form, .nm-done { padding: 1.25rem 1.1rem; } }
+.nm-form fieldset { border: 0; padding: 0; margin: 0 0 1.75rem; display: grid; gap: .9rem; }
+.nm-form legend { font-family: var(--serif); font-size: 1.45rem; font-weight: 600; color: var(--ink); padding: 0; margin-bottom: .6rem; }
+.nm-form label { display: block; font-weight: 600; font-size: .93rem; }
+.nm-form label > input, .nm-form label > select, .nm-form label > textarea { display: block; margin-top: .35rem; }
+.nm-form input:not([type=checkbox]), .nm-form select, .nm-form textarea { width: 100%; font: inherit; font-weight: 400; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); box-sizing: border-box; }
+.nm-form input:focus, .nm-form select:focus, .nm-form textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
+.nm-form textarea { resize: vertical; }
+.opt { font-weight: 400; color: var(--muted); }
+.nm-row { display: grid; gap: .9rem; }
+.nm-row--2 { grid-template-columns: 1fr 1fr; }
+.nm-row--3 { grid-template-columns: 2fr 1fr 1fr; }
+@media (max-width: 640px) { .nm-row--2, .nm-row--3 { grid-template-columns: 1fr; } }
+.nm-help { margin: -.4rem 0 0; color: var(--muted); font-size: .93rem; }
+.nm-family { display: grid; gap: .75rem; }
+.nm-person { display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 1.1fr auto; gap: .7rem; align-items: end; padding: .85rem; border-radius: 10px; background: var(--tint); }
+.nm-person label { font-size: .84rem; }
+.nm-person__remove { border: 0; background: none; font-size: 1.5rem; line-height: 1; color: var(--muted); cursor: pointer; padding: .4rem .3rem; }
+.nm-person__remove:hover { color: #a12a2a; }
+@media (max-width: 760px) { .nm-person { grid-template-columns: 1fr 1fr; } .nm-person__remove { grid-column: 2; justify-self: end; grid-row: 1; } }
+.nm-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .5rem .9rem; }
+.nm-form .nm-check { display: flex; align-items: center; gap: .55rem; font-weight: 500; }
+.nm-hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.nm-privacy { color: var(--muted); font-size: .9rem; }
+.nm-submit { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.nm-msg { margin: 0; font-weight: 600; }
+.nm-msg.is-error { color: #a12a2a; }
+.nm-done:focus { outline: none; }
+.panel__aside { margin: 1rem 0 0; font-size: .95rem; }
+.panel--dark .panel__aside a { color: var(--gold); }

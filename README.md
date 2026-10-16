@@ -92,6 +92,11 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - Refresh: hourly (`mitra-sources-hourly`, at :07) plus a small job every 10 minutes that reads a few Kalpana PDFs (`mitra-sources-pdfs`). Both are `pg_cron` jobs calling the function with a private key stored in `app_secrets`.
 - **Admin → Portal Settings → Mitra AI reference sources** shows what's loaded, has a **Refresh now** button, an on/off switch for marthoma.in, and a box for up to 25 other web pages Mitra AI may use.
 
+### New Members form (/new-members/)
+- Visitors fill in their details, family, home parish and transfer-letter status. Each request is saved in **Admin → New Members** (badge shows how many are new) and emailed to the Vicar and Secretary (change the addresses there). Replying to the email writes straight to the applicant.
+- In Admin: add office notes, **Mark as contacted**, **Add family to the parish register** (creates the family and its members in one click), or **Close request**.
+- Email uses the same Resend setup as newsletters and greetings (`RESEND_API_KEY` + mtcatlanta.org verified in Resend). Until then requests are still saved in Admin.
+
 ### Worship schedule (Admin → Worship)
 - **Upcoming Sundays:** officers can change any Sunday: language (Malayalam, English, Bilingual, Combined, No service), time, a note (e.g. "Holy Communion", "Episcopal Visit") and the celebrant. Sundays left alone follow the regular pattern. **Reset** returns a Sunday to normal.
 - **Regular pattern** (admins): service time and the language for the 1st–5th Sundays.
@@ -106,6 +111,7 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - `supabase/002_admin_events_photos.sql` — events, photo submissions, portal settings, admin write access, file storage.
 - `supabase/functions/admin-users/` — server function behind "Portal access" (deployed as `admin-users`).
 - `supabase/003_chat.sql` + `supabase/functions/chat/` — chat assistant usage limits and function.
+- `supabase/011_new_members.sql` + `supabase/functions/new-member/` — New Members form requests and the staff email.
 - `supabase/006_worship.sql` — per-Sunday worship changes and the regular pattern; public read of the lectionary.
 - `supabase/005_flyers.sql` — flyer images on events and announcements (public `flyers` bucket) and the events "Register / details" link.
 - `supabase/004_mitra_references.sql` + `supabase/functions/mitra-sources/` — marthoma.in reference copy, search and the scheduled refresh jobs.
