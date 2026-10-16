@@ -20,12 +20,12 @@ description: Join the parish family of Mar Thoma Church, Atlanta. Fill in the ne
       <p>Whether you have just moved to Atlanta or have been worshipping with us for a while, we would be glad to welcome you and your family as members of {{ c.name }}.</p>
       <h3>What happens next</h3>
       <ol class="nm__steps">
-        <li><strong>Fill in the form.</strong> It goes straight to Achen ({{ v.name }}) and our Parish Secretary.</li>
-        <li><strong>Achen will get in touch</strong> to welcome you and arrange a time to meet.</li>
+        <li><strong>Fill in the form.</strong> It goes straight to the Vicar ({{ v.name }}) and our Parish Secretary.</li>
+        <li><strong>The Vicar will get in touch</strong> to welcome you and arrange a time to meet.</li>
         <li><strong>Moving from another Mar Thoma parish?</strong> Please ask your previous Vicar for a membership transfer letter.</li>
         <li><strong>Your family is added to the parish register</strong> and you’ll receive access to the member portal.</li>
       </ol>
-      <p class="nm__contact">Questions? Call Achen at <a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a> or email <a href="mailto:{{ v.email }}">{{ v.email }}</a>.</p>
+      <p class="nm__contact">Questions? Call the Vicar at <a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a> or email <a href="mailto:{{ v.email }}">{{ v.email }}</a>.</p>
     </aside>
 
     <form class="nm-form" id="new-member-form" novalidate>
@@ -84,14 +84,14 @@ description: Join the parish family of Mar Thoma Church, Atlanta. Fill in the ne
 
       <fieldset>
         <legend>Anything else?</legend>
-        <label>Message for Achen <span class="opt">(optional)</span><textarea name="message" rows="4" maxlength="2000" placeholder="Anything you’d like us to know — prayer requests, best time to call, questions…"></textarea></label>
+        <label>Message for the Vicar <span class="opt">(optional)</span><textarea name="message" rows="4" maxlength="2000" placeholder="Anything you’d like us to know — prayer requests, best time to call, questions…"></textarea></label>
         <label>How did you hear about us? <span class="opt">(optional)</span><input name="heard_from" maxlength="200"></label>
         <label class="nm-hp" aria-hidden="true">Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label>
       </fieldset>
 
       <p class="nm-privacy">Your details are sent only to the Vicar and the Parish Secretary and kept in the parish office’s records.</p>
       <div class="nm-submit">
-        <button class="btn btn--gold" type="submit">Send to Achen &amp; the Secretary</button>
+        <button class="btn btn--gold" type="submit">Send to the Vicar &amp; the Secretary</button>
         <p class="nm-msg" role="status" aria-live="polite"></p>
       </div>
     </form>
@@ -99,7 +99,7 @@ description: Join the parish family of Mar Thoma Church, Atlanta. Fill in the ne
     <div class="nm-done" id="nm-done" hidden tabindex="-1">
       <p class="eyebrow">Thank you</p>
       <h2>We’ve received your form</h2>
-      <p>Thank you, <span data-nm-name></span>! Achen and our Parish Secretary have your details and will be in touch soon. We look forward to welcoming your family.</p>
+      <p>Thank you, <span data-nm-name></span>! The Vicar and our Parish Secretary have your details and will be in touch soon. We look forward to welcoming your family.</p>
       <p class="btn-row-inline"><a class="btn btn--primary" href="{{ '/worship/' | relative_url }}">Sunday worship</a> <a class="btn btn--outline" href="{{ '/events/' | relative_url }}">Upcoming events</a></p>
     </div>
   </div>

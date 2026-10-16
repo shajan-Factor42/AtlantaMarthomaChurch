@@ -11,8 +11,7 @@ permalink: /assets/chat-knowledge.json
   "google_maps": {{ c.google_maps_url | jsonify }},
   "directions": {{ c.directions_url | jsonify }},
   "worship": {
-    "when": {{ c.worship.day | append: "s at " | append: c.worship.time | jsonify }},
-    "languages": "Malayalam on the 1st and 3rd Sundays of the month, English on the 2nd and 4th Sundays. On 5th Sundays, see the announcements.",
+    "when": "Two services every Sunday, one in English and one in Malayalam. The current times (and any changes for a particular Sunday) are in the upcoming_sundays information.",
     "livestream": {{ c.livestream_url | jsonify }},
     "visitors": "Everyone is welcome; arrive a few minutes early and someone will help you find a seat. Children are welcome."
   },
@@ -35,5 +34,5 @@ permalink: /assets/chat-knowledge.json
     "Member portal": {{ base | append: "/members/" | jsonify }}
   },
   "member_portal": "Registered parish members can sign in to the member portal to update family details, see their contribution statement, read members-only documents and share photos. Accounts are by invitation: ask the church secretary to be added.",
-  "becoming_a_member": "People who want to join the parish fill in the New Members form on the website (pages: New Members). It goes to the Vicar (Achen) and the Parish Secretary, and Achen gets in touch to welcome them. Families moving from another Mar Thoma parish should ask their previous Vicar for a membership transfer letter."
+  "becoming_a_member": "People who want to join the parish fill in the New Members form on the website (pages: New Members). It goes to the Vicar and the Parish Secretary, and the Vicar gets in touch to welcome them. Families moving from another Mar Thoma parish should ask their previous Vicar for a membership transfer letter."
 }

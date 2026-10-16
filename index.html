@@ -27,15 +27,14 @@ layout: default
     </div>
     <aside class="service-card">
       <p class="eyebrow">This Sunday</p>
-      <p class="service-card__time" data-sunday-time>{{ site.data.church.worship.time }}</p>
-      <p class="service-card__lang"><span data-sunday-language>Sunday</span> service</p>
       <p class="service-card__date" data-sunday-date></p>
+      <ul class="service-list" data-sunday-list>
+        <li><span>8:00 AM</span><strong>English</strong></li>
+        <li><span>10:00 AM</span><strong>Malayalam</strong></li>
+      </ul>
       <p class="service-card__note" data-sunday-note hidden></p>
       <hr>
-      <ul class="schedule" data-worship-schedule>
-        <li><span>1st &amp; 3rd Sundays</span><strong>Malayalam</strong></li>
-        <li><span>2nd &amp; 4th Sundays</span><strong>English</strong></li>
-      </ul>
+      <a class="text-link" href="{{ '/worship/' | relative_url }}">Upcoming Sundays &amp; readings →</a>
     </aside>
   </div>
 </section>
@@ -45,11 +44,11 @@ layout: default
     <div class="join-band__text">
       <p class="eyebrow">New Members</p>
       <h2>Make {{ site.data.church.name }} your church home</h2>
-      <p>Just moved to Atlanta, or been worshipping with us for a while? Fill in our short new member form. It goes straight to Achen and the Parish Secretary, and Achen will get in touch to welcome your family.</p>
+      <p>Just moved to Atlanta, or been worshipping with us for a while? Fill in our short new member form. It goes straight to the Vicar and the Parish Secretary, and the Vicar will get in touch to welcome your family.</p>
     </div>
     <ol class="join-band__steps">
       <li><span>1</span>Fill in the form</li>
-      <li><span>2</span>Achen gets in touch</li>
+      <li><span>2</span>The Vicar gets in touch</li>
       <li><span>3</span>Your family joins the parish</li>
     </ol>
     <a class="btn btn--gold join-band__cta" href="{{ '/new-members/' | relative_url }}">New member form</a>
@@ -70,7 +69,7 @@ layout: default
           <p class="eyebrow">Our Vicar</p>
           <h3>{{ v.name }}</h3>
           <p>{{ v.bio }}</p>
-          <p><a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a> · <a href="mailto:{{ v.email }}">Email Achen</a></p>
+          <p><a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a> · <a href="mailto:{{ v.email }}">Email the Vicar</a></p>
         </div>
       </article>
       <article class="card card--feature">
@@ -121,14 +120,6 @@ layout: default
         <div data-home-events></div>
         <a class="text-link" href="{{ '/events/' | relative_url }}">See the full calendar →</a>
       </aside>
-    </div>
-    <div class="flyers" data-lightbox-group>
-      {% for a in site.data.announcements %}
-      <a class="flyer" href="{{ m }}/{{ a.image }}" data-lightbox>
-        <img src="{{ m }}/{{ a.image }}" alt="{{ a.title }}" loading="lazy">
-        <span>{{ a.title }}</span>
-      </a>
-      {% endfor %}
     </div>
   </div>
 </section>

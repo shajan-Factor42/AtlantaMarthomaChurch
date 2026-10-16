@@ -2,7 +2,7 @@
 layout: default
 title: Worship
 permalink: /worship/
-description: Sunday worship at Mar Thoma Church, Atlanta begins at 10 AM — Malayalam on the 1st and 3rd Sundays, English on the 2nd and 4th. Watch live on YouTube.
+description: Two Sunday services at Mar Thoma Church, Atlanta — English and Malayalam. Watch live on YouTube.
 ---
 {% assign c = site.data.church %}
 <section class="page-hero">
@@ -15,12 +15,12 @@ description: Sunday worship at Mar Thoma Church, Atlanta begins at 10 AM — Mal
 <section class="section">
   <div class="wrap split">
     <div class="prose">
-      <h2>Sunday worship at <span data-worship-time>{{ c.worship.time }}</span></h2>
-      <p>Our Sunday service begins at <span data-worship-time>{{ c.worship.time }}</span>. We worship in <span data-worship-pattern>Malayalam on the 1st and 3rd Sundays, and English on the 2nd and 4th Sundays</span> of the month, so everyone in the family can take part fully.</p>
+      <h2>Sunday worship</h2>
+      <p>Every Sunday we hold <span data-worship-sentence>{{ c.worship.sentence }}</span>, so everyone in the family can worship in the language they know best.</p>
       <h3>Visiting for the first time?</h3>
       <p>You are welcome as you are. Arrive a few minutes early and someone will be glad to help you find a seat and answer any questions. Children are always welcome.</p>
       <p>Would you like us to pray for you? <a href="{{ '/prayer-request/' | relative_url }}">Send a prayer request</a> (you can stay anonymous).</p>
-      <p>Thinking of making {{ c.name }} your church home? <a href="{{ '/new-members/' | relative_url }}">Fill in the new member form</a> and Achen will be in touch.</p>
+      <p>Thinking of making {{ c.name }} your church home? <a href="{{ '/new-members/' | relative_url }}">Fill in the new member form</a> and the Vicar will be in touch.</p>
       <h3>Can’t be there in person?</h3>
       <p>The service is streamed live on YouTube every Sunday.</p>
       {% include video.html %}

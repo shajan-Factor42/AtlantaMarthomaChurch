@@ -92,20 +92,23 @@ async function references(sb: any, today: string, msgs: { role: string; content:
       return `### ${label}: ${h.title}${h.published_on ? ` (${h.published_on})` : ""}\nSource: ${h.url}\n${body || "(text of this document isn't available — share the link)"}`;
     }).join("\n\n");
   }
-  // Our parish's next Sundays: regular pattern + any changes made in Admin → Worship
+  // Our parish's next Sundays: regular services (English & Malayalam) + any changes made in Admin → Worship
   const { data: wset } = await sb.from("portal_settings").select("value").eq("key", "worship").maybeSingle();
-  const pat = { time: "10:00", schedule: { 1: "Malayalam", 2: "English", 3: "Malayalam", 4: "English", 5: "Special" } as Record<string, string>, fifth_note: "See announcements", ...(wset?.value || {}) };
+  type Svc = { time: string; language: string };
+  const norm = (l: Svc[]) => l.map((x) => ({ time: String(x.time || "10:00").slice(0, 5), language: x.language || "English" })).sort((a, b) => a.time.localeCompare(b.time));
+  const regular: Svc[] = norm(Array.isArray(wset?.value?.services) && wset.value.services.length ? wset.value.services : [{ time: "08:00", language: "English" }, { time: "10:00", language: "Malayalam" }]);
   const todayDow = new Date(today + "T12:00:00Z").getUTCDay();
   const firstSun = addDays(today, (7 - todayDow) % 7);
   const lastSun = addDays(firstSun, 7 * 7);
-  const { data: wchanges } = await sb.from("worship_services").select("day, language, time, note, celebrant").gte("day", firstSun).lte("day", lastSun);
-  const chg = Object.fromEntries((wchanges || []).map((c: Record<string, string>) => [c.day, c]));
+  const { data: wchanges } = await sb.from("worship_services").select("day, language, services, no_service, note, celebrant").gte("day", firstSun).lte("day", lastSun);
+  // deno-lint-ignore no-explicit-any
+  const chg: Record<string, any> = Object.fromEntries((wchanges || []).map((c: Record<string, unknown>) => [c.day, c]));
   const t12 = (t: string) => { const [h, m] = t.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
   const sundays = Array.from({ length: 8 }, (_, i) => {
-    const d = addDays(firstSun, 7 * i), nth = Math.ceil(Number(d.slice(8)) / 7), c = chg[d] || {};
-    const lang = c.language || pat.schedule[String(nth)] || "Special";
-    const note = c.note || (lang === "Special" ? pat.fifth_note : "");
-    return `${d} (${dow(d)}, ${["", "1st", "2nd", "3rd", "4th", "5th"][nth]} Sunday): ${lang === "No service" ? "NO SERVICE" : `${lang} service at ${t12((c.time || pat.time).slice(0, 5))}`}${note ? ` — ${note}` : ""}${c.celebrant ? ` — ${c.celebrant}` : ""}${chg[d] ? " [changed from the regular pattern]" : ""}`;
+    const d = addDays(firstSun, 7 * i), c = chg[d] || {};
+    const off = c.no_service || c.language === "No service";
+    const svc = off ? [] : (Array.isArray(c.services) && c.services.length ? norm(c.services) : regular);
+    return `${d} (${dow(d)}): ${off ? "NO SERVICE" : svc.map((x) => `${x.language} service at ${t12(x.time)}`).join("; ")}${c.note ? ` — ${c.note}` : ""}${c.celebrant ? ` — ${c.celebrant}` : ""}${chg[d] ? " [changed by the parish office]" : ""}`;
   }).join("\n");
   return { lect, circ, found, sundays };
 }
@@ -190,7 +193,7 @@ How to answer:
 - Use ONLY the information in the blocks below. If the answer isn't there, say you don't have that detail and point them to the right contact (church email or the relevant officer), page or marthoma.in. Never invent dates, times, names, phone numbers, addresses, Bible readings or policies.
 - Keep replies short and warm: usually 1–4 sentences, or a short list. Use plain language.
 - When you mention a page, newsletter, Kalpana or the livestream, include its link as a markdown link [like this](url) using the exact URLs given.
-- For the language, time or special notes of a Sunday service at our parish, use the upcoming_sundays block (it includes changes made by the parish office). Normally 1st and 3rd Sundays are Malayalam and 2nd and 4th are English.
+- Our parish holds two services every Sunday, one in English and one in Malayalam. For service times or special notes on a particular Sunday, use the upcoming_sundays block (it includes changes made by the parish office).
 - Reply in the visitor's language (for example Malayalam or English).
 - For prayer requests, warmly point them to the Prayer Request page (it goes privately to the Vicar and can be sent anonymously) and offer the Vicar's phone number. For joining the parish, point them to the New Members page. For pastoral care, sacraments (baptism, weddings, funerals) or anything personal, suggest contacting the Vicar directly. In an emergency, tell them to call 911.
 - You can't see or change anyone's member records, giving or passwords; direct those to the member portal or church secretary.
@@ -216,7 +219,7 @@ ${info}
     const dynamicPart = `It is now ${now} (Atlanta time). Today is ${today}.
 
 <upcoming_sundays note="our parish's Sunday services">
-${refs.sundays || "(see the regular pattern)"}
+${refs.sundays || "(two services every Sunday: English and Malayalam)"}
 </upcoming_sundays>
 
 <upcoming_public_events>

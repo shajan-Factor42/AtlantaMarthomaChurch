@@ -1,4 +1,5 @@
-# Flyers shown on the home page. "image" is relative to media_base.
+# Flyers from past events (carried over from the old website), shown under "Past events" on the Events page.
+# "image" is relative to media_base. Current flyers are added in Admin → Announcements / Events.
 - title: Aneste
   image: 2026/03/aneste.jpeg
 - title: One-Day Retreat

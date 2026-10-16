@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       wants_contact: !anonymous && b.wants_contact === true,
     };
     if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(r.email)) return json({ error: "Please check your email address, or leave it blank." }, 400);
-    if (r.wants_contact && !r.email && !r.phone) return json({ error: "Please add an email or phone number so Achen can reach you." }, 400);
+    if (r.wants_contact && !r.email && !r.phone) return json({ error: "Please add an email or phone number so the Vicar can reach you." }, 400);
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: setRow } = await sb.from("portal_settings").select("value").eq("key", "prayer").maybeSingle();

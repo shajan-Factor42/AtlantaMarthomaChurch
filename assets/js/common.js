@@ -183,9 +183,9 @@ export const mediaUrl = (u) => !u ? '' : /^https?:\/\//i.test(u) ? u : new URL(S
 /** Escape text, then turn bare web addresses into links. */
 export const linkify = (text) => esc(text).replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`);
 
-/* ---------------- Worship: regular pattern + per-Sunday changes ---------------- */
-export const WORSHIP_LANGS = ['Malayalam', 'English', 'Bilingual', 'Combined', 'No service'];
-export const WORSHIP_DEFAULT = { time: '10:00', schedule: { 1: 'Malayalam', 2: 'English', 3: 'Malayalam', 4: 'English', 5: 'Special' }, fifth_note: 'See announcements' };
+/* ---------------- Worship: regular Sunday services + per-Sunday changes ---------------- */
+export const WORSHIP_LANGS = ['English', 'Malayalam', 'Bilingual', 'Combined'];
+export const WORSHIP_DEFAULT = { services: [{ time: '08:00', language: 'English' }, { time: '10:00', language: 'Malayalam' }] };
 /** "19:30" or "19:30:00" → "7:30 PM" */
 export const fmtTime = (t) => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
 const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -195,15 +195,21 @@ export function nextSundays(n, from = new Date()) {
   d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
   return Array.from({ length: n }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + 7 * i); return ymdLocal(x); });
 }
-/** What a given Sunday looks like once the regular pattern and any change are combined. */
+/** Regular services from the saved setting (older single-time settings are converted). */
+export function regularServices(pattern) {
+  const list = pattern && Array.isArray(pattern.services) && pattern.services.length ? pattern.services : WORSHIP_DEFAULT.services;
+  return list.map((x) => ({ time: String(x.time || '10:00').slice(0, 5), language: x.language || 'English' })).sort((a, b) => a.time.localeCompare(b.time));
+}
+/** What a given Sunday looks like once the regular services and any change are combined. */
 export function sundayInfo(day, pattern = WORSHIP_DEFAULT, change = null) {
-  const nth = Math.ceil(Number(day.slice(8, 10)) / 7);
-  const regular = (pattern.schedule || {})[nth] || WORSHIP_DEFAULT.schedule[nth];
-  const lang = (change && change.language) || regular;
+  const regular = regularServices(pattern);
+  const own = change && Array.isArray(change.services) && change.services.length ? change.services.map((x) => ({ time: String(x.time).slice(0, 5), language: x.language })).sort((a, b) => a.time.localeCompare(b.time)) : null;
+  const off = !!(change && (change.no_service || change.language === 'No service'));
   return {
-    day, nth, regular, lang,
-    time: (change && change.time) || pattern.time || WORSHIP_DEFAULT.time,
-    note: (change && change.note) || (nth === 5 && lang === 'Special' ? pattern.fifth_note || '' : ''),
+    day, nth: Math.ceil(Number(day.slice(8, 10)) / 7), regular, off,
+    services: off ? [] : own || regular,
+    custom: !!own,
+    note: (change && change.note) || '',
     celebrant: (change && change.celebrant) || '',
     changed: !!change
   };

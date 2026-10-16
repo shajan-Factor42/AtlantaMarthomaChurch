@@ -17,9 +17,9 @@ description: Send a prayer request to the Vicar of Mar Thoma Church, Atlanta. Yo
     <aside class="nm__intro">
       <h2>We would be honoured to pray with you</h2>
       <p>“Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.” <span class="muted">— Philippians 4:6</span></p>
-      <p>Your request goes privately to Achen ({{ v.name }}). You can share your name so he can follow up, or send it <strong>anonymously</strong>.</p>
+      <p>Your request goes privately to the Vicar ({{ v.name }}). You can share your name so he can follow up, or send it <strong>anonymously</strong>.</p>
       <p>Nothing you write here is ever posted on the website.</p>
-      <p class="nm__contact">To speak with Achen directly, call <a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a>. In an emergency, call 911.</p>
+      <p class="nm__contact">To speak with the Vicar directly, call <a href="tel:{{ v.phone | remove: '-' }}">{{ v.phone }}</a>. In an emergency, call 911.</p>
     </aside>
 
     <form class="nm-form" id="prayer-form" novalidate>
@@ -39,14 +39,14 @@ description: Send a prayer request to the Vicar of Mar Thoma Church, Atlanta. Yo
             <label>Email <span class="opt">(optional)</span><input type="email" name="email" autocomplete="email" maxlength="160"></label>
             <label>Phone <span class="opt">(optional)</span><input type="tel" name="phone" autocomplete="tel" maxlength="40"></label>
           </div>
-          <label class="nm-check"><input type="checkbox" name="wants_contact"> I’d like Achen to contact me</label>
+          <label class="nm-check"><input type="checkbox" name="wants_contact"> I’d like the Vicar to contact me</label>
         </div>
-        <p class="pr-anon-note" hidden>Your request will be sent without your name, email or phone. Achen won’t be able to reply to you.</p>
+        <p class="pr-anon-note" hidden>Your request will be sent without your name, email or phone. The Vicar won’t be able to reply to you.</p>
       </fieldset>
 
       <fieldset>
         <legend>Sharing</legend>
-        <label class="nm-check"><input type="checkbox" name="share_ok"> Achen may include this request, without any names, in Sunday intercessions or the prayer group</label>
+        <label class="nm-check"><input type="checkbox" name="share_ok"> The Vicar may include this request, without any names, in Sunday intercessions or the prayer group</label>
         <label class="nm-hp" aria-hidden="true">Leave this empty<input name="website" tabindex="-1" autocomplete="off"></label>
       </fieldset>
 
@@ -59,7 +59,7 @@ description: Send a prayer request to the Vicar of Mar Thoma Church, Atlanta. Yo
     <div class="nm-done" id="pr-done" hidden tabindex="-1">
       <p class="eyebrow">Thank you</p>
       <h2>Your prayer request has been received</h2>
-      <p>Achen will be praying with you. “The Lord is near to all who call on him.” <span class="muted">— Psalm 145:18</span></p>
+      <p>The Vicar will be praying with you. “The Lord is near to all who call on him.” <span class="muted">— Psalm 145:18</span></p>
       <p class="btn-row-inline"><button class="btn btn--outline" type="button" id="pr-another">Send another request</button> <a class="btn btn--primary" href="{{ '/worship/' | relative_url }}">Sunday worship</a></p>
     </div>
   </div>

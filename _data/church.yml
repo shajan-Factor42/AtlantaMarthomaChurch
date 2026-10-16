@@ -16,15 +16,11 @@ directions_url: "https://www.google.com/maps/dir/?api=1&destination=Mar+Thoma+Ch
 map_embed_url: "https://maps.google.com/maps?q=Mar%20Thoma%20Church%2C%20Atlanta%2C%206015%20Old%20Stone%20Mountain%20Rd%2C%20Stone%20Mountain%2C%20GA%2030087&z=15&output=embed"
 
 worship:
-  time: "10:00 AM"
   day: Sunday
-  # Which language is used on each Sunday of the month
-  schedule:
-    1: Malayalam
-    2: English
-    3: Malayalam
-    4: English
-    5: "See announcements"
+  # Two services every Sunday. These are only the fallback shown before the page loads —
+  # the real times are set in Admin → Worship (regular services, and changes for any Sunday).
+  times: "8:00 AM English · 10:00 AM Malayalam"
+  sentence: "two services: English at 8:00 AM and Malayalam at 10:00 AM"
 
 livestream_url: "https://www.youtube.com/watch?v=Pb5sNO5pIcA"
 livestream_video_id: "Pb5sNO5pIcA"   # the video embedded on the home and worship pages

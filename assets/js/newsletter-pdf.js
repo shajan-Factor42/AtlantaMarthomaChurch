@@ -233,7 +233,9 @@ export async function buildNewsletterPdf(nl, church) {
     const rows = sundays.map((s) => {
       const worship = s.lang === 'No service'
         ? [{ text: 'NO SERVICE', bold: true }, s.special ? `(${s.special})` : ''].filter(Boolean)
-        : [{ text: String(s.service || 'Holy Communion').toUpperCase(), bold: false }, `(${s.lang})`, `${s.time} ${s.date_long || s.label}`, s.special ? `(${s.special})` : ''].filter(Boolean);
+        : [{ text: String(s.service || 'Holy Communion').toUpperCase(), bold: false }, s.date_long || s.label,
+           ...(Array.isArray(s.services) && s.services.length ? s.services.map((x) => `${x.time} (${x.language})`) : [`(${s.lang})`, s.time]),
+           s.special ? `(${s.special})` : ''].filter(Boolean);
       const lect = [s.lesson1 && `LESSON 1: ${s.lesson1}`, s.lesson2 && `LESSON 2: ${s.lesson2}`, s.epistle && `EPISTLE: ${s.epistle}`, s.gospel && `GOSPEL: ${s.gospel}`].filter(Boolean);
       return [
         { stack: worship.map((t) => (typeof t === 'string' ? { text: t } : t)) },

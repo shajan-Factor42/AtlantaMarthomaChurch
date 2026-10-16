@@ -14,7 +14,7 @@
     const f = form.elements, anon = f.anonymous.checked;
     if (f.request.value.trim().length < 3) { f.request.focus(); return say('Please write your prayer request.', true); }
     if (!anon && f.email.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.value.trim())) { f.email.focus(); return say('Please check your email address, or leave it blank.', true); }
-    if (!anon && f.wants_contact.checked && !f.email.value.trim() && !f.phone.value.trim()) { f.phone.focus(); return say('Please add an email or phone number so Achen can reach you.', true); }
+    if (!anon && f.wants_contact.checked && !f.email.value.trim() && !f.phone.value.trim()) { f.phone.focus(); return say('Please add an email or phone number so the Vicar can reach you.', true); }
     const body = {
       anonymous: anon, request: f.request.value.trim(), for_whom: f.for_whom.value, share_ok: f.share_ok.checked,
       name: anon ? '' : f.name.value.trim(), email: anon ? '' : f.email.value.trim(), phone: anon ? '' : f.phone.value.trim(),

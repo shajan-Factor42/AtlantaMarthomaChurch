@@ -30,17 +30,14 @@ window.MTCA_ZEFFY_EMBED = function (link) {
     e.target.closest('form').querySelectorAll('input[name=password], input[name=confirm]').forEach((i) => { i.type = e.target.checked ? 'text' : 'password'; });
   });
 
-  // Sunday services: regular pattern (1st & 3rd Malayalam, 2nd & 4th English) with any
+  // Sunday services: the regular services (default 8:00 AM English, 10:00 AM Malayalam) with any
   // per-Sunday changes the admin has made (Admin → Worship), loaded from the database.
-  const W = {
-    pattern: { time: '10:00', schedule: { 1: 'Malayalam', 2: 'English', 3: 'Malayalam', 4: 'English', 5: 'Special' }, fifth_note: 'See announcements' },
-    changes: {}, lect: {}
-  };
+  const W = { services: [{ time: '08:00', language: 'English' }, { time: '10:00', language: 'Malayalam' }], changes: {}, lect: {} };
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const nextSunday = (from) => {
     const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-    const add = (7 - d.getDay()) % 7 || (from.getHours() >= 12 ? 7 : 0); // after noon on Sunday, look ahead a week
+    const add = (7 - d.getDay()) % 7 || (from.getHours() >= 13 ? 7 : 0); // after Sunday services, look ahead a week
     d.setDate(d.getDate() + add);
     return d;
   };
@@ -48,29 +45,30 @@ window.MTCA_ZEFFY_EMBED = function (link) {
   const fmt = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const english = (title) => (title || '').split(/;|\s[–-]\s/).map((x) => x.trim()).filter((x) => x && !/[ഀ-ൿ]/.test(x)).join(' · ');
+  const norm = (list) => list.map((x) => ({ time: String(x.time || '10:00').slice(0, 5), language: x.language || 'English' })).sort((a, b) => a.time.localeCompare(b.time));
   const info = (d) => {
-    const nth = Math.ceil(d.getDate() / 7), c = W.changes[ymd(d)] || {};
-    const lang = c.language || W.pattern.schedule[nth] || 'Special';
-    return { nth, lang, time: c.time || W.pattern.time, note: c.note || (lang === 'Special' ? W.pattern.fifth_note || '' : ''), celebrant: c.celebrant || '', changed: !!W.changes[ymd(d)] };
+    const c = W.changes[ymd(d)] || null;
+    const off = !!(c && (c.no_service || c.language === 'No service'));
+    const own = c && Array.isArray(c.services) && c.services.length ? norm(c.services) : null;
+    return { off, services: off ? [] : own || norm(W.services), custom: !!own, note: (c && c.note) || '', celebrant: (c && c.celebrant) || '', changed: !!c };
   };
-  const langLabel = (i) => (i.lang === 'Special' ? 'Special service' : i.lang === 'No service' ? 'No service' : i.lang === 'Combined' ? 'Combined service' : i.lang);
+  const svcShort = (list) => list.map((x) => `${fmtTime(x.time)} ${x.language}`).join(' · ');
 
   const sun = nextSunday(new Date());
   const up = document.querySelector('[data-upcoming-sundays]');
   function renderSundays() {
-    const t = info(sun);
-    document.querySelectorAll('[data-sunday-language]').forEach((el) => { el.textContent = t.lang === 'Special' ? 'Special' : t.lang; });
+    const t = info(sun), reg = norm(W.services);
+    // Top banner: "Sunday Worship · 8:00 AM English · 10:00 AM Malayalam"
+    document.querySelectorAll('[data-sunday-services]').forEach((el) => { el.textContent = t.off ? 'No service this Sunday' : svcShort(t.services); });
     document.querySelectorAll('[data-sunday-date]').forEach((el) => { el.textContent = fmt(sun); });
-    document.querySelectorAll('[data-sunday-time]').forEach((el) => { el.textContent = t.lang === 'No service' ? 'No service' : fmtTime(t.time); });
+    document.querySelectorAll('[data-sunday-list]').forEach((el) => {
+      el.innerHTML = t.off ? '<li><span>No service this Sunday</span></li>' : t.services.map((x) => `<li><span>${esc(fmtTime(x.time))}</span><strong>${esc(x.language)}</strong></li>`).join('');
+    });
     document.querySelectorAll('[data-sunday-note]').forEach((el) => { el.textContent = [t.note, t.celebrant].filter(Boolean).join(' · '); el.hidden = !el.textContent; });
-    document.querySelectorAll('[data-worship-time]').forEach((el) => { el.textContent = fmtTime(W.pattern.time); });
-    const s = W.pattern.schedule;
-    const groups = {};
-    [1, 2, 3, 4].forEach((n) => { (groups[s[n]] ||= []).push(['1st', '2nd', '3rd', '4th'][n - 1]); });
-    const sentence = Object.entries(groups).map(([lang, ns]) => `${lang === 'Special' ? 'a special service' : lang} on the ${ns.join(' and ')} Sunday${ns.length > 1 ? 's' : ''}`).join(', and ');
-    document.querySelectorAll('[data-worship-pattern]').forEach((el) => { el.textContent = sentence; });
-    document.querySelectorAll('[data-worship-schedule]').forEach((el) => {
-      el.innerHTML = Object.entries(groups).map(([lang, ns]) => `<li><span>${ns.join(' & ')} Sundays</span><strong>${esc(lang)}</strong></li>`).join('');
+    document.querySelectorAll('[data-worship-times]').forEach((el) => { el.textContent = svcShort(reg); });
+    document.querySelectorAll('[data-worship-sentence]').forEach((el) => {
+      el.textContent = reg.length === 1 ? `one service at ${fmtTime(reg[0].time)} in ${reg[0].language}` :
+        `${reg.length === 2 ? 'two' : reg.length} services: ` + reg.map((x, i) => `${i === reg.length - 1 ? 'and ' : ''}${x.language} at ${fmtTime(x.time)}`).join(reg.length > 2 ? ', ' : ' ');
     });
     if (up) {
       const rich = up.hasAttribute('data-with-readings');
@@ -78,9 +76,10 @@ window.MTCA_ZEFFY_EMBED = function (link) {
       const d = new Date(sun);
       for (let i = 0; i < (rich ? 6 : 5); i++) {
         const x = info(d), lect = W.lect[ymd(d)];
-        const extra = [x.lang !== 'No service' && x.time !== W.pattern.time ? fmtTime(x.time) : '', x.note, x.celebrant].filter(Boolean).join(' · ');
-        html += `<li class="sun${x.changed ? ' sun--changed' : ''}${x.lang === 'No service' ? ' sun--off' : ''}">
-          <div class="sun__row"><span>${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span><strong>${esc(langLabel(x))}</strong></div>
+        const extra = [x.note, x.celebrant].filter(Boolean).join(' · ');
+        html += `<li class="sun${x.custom || x.off ? ' sun--changed' : ''}${x.off ? ' sun--off' : ''}">
+          <div class="sun__row"><span>${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+            <strong>${x.off ? 'No service' : x.services.map((s) => `<span class="sun__svc">${esc(fmtTime(s.time))} ${esc(s.language)}</span>`).join('')}</strong></div>
           ${extra ? `<p class="sun__note">${esc(extra)}</p>` : ''}
           ${rich && lect ? `<details class="sun__readings"><summary>${esc(english(lect.title) || 'Readings')}</summary>
             <dl>${lect.lessons ? `<dt>Lessons</dt><dd>${esc(lect.lessons)}</dd>` : ''}${lect.epistle_gospel ? `<dt>Epistle / Gospel</dt><dd>${esc(lect.epistle_gospel)}</dd>` : ''}${lect.evening ? `<dt>Evening</dt><dd>${esc(lect.evening)}</dd>` : ''}${lect.songs ? `<dt>Song</dt><dd>${esc(lect.songs)}</dd>` : ''}</dl></details>` : ''}
@@ -93,27 +92,25 @@ window.MTCA_ZEFFY_EMBED = function (link) {
   renderSundays();
 
   const CFG = window.MTCA_CONFIG || {};
+  const apply = (setting, changes, lect) => {
+    if (setting && Array.isArray(setting.services) && setting.services.length) W.services = setting.services;
+    W.changes = Object.fromEntries((changes || []).map((c) => [c.day, c]));
+    W.lect = Object.fromEntries((lect || []).map((l) => [l.day, l]));
+    renderSundays();
+  };
   if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && !window.__MTCA_FAKE_SB) {
     const last = new Date(sun); last.setDate(last.getDate() + 42);
     const range = `day=gte.${ymd(sun)}&day=lte.${ymd(last)}`;
     const get = (path) => fetch(`${CFG.SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: CFG.SUPABASE_ANON_KEY } }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
     Promise.all([
       get('portal_settings?key=eq.worship&select=value'),
-      get(`worship_services?${range}&select=day,language,time,note,celebrant`),
+      get(`worship_services?${range}&select=day,language,services,no_service,note,celebrant`),
       up && up.hasAttribute('data-with-readings') ? get(`ref_lectionary?${range}&select=day,title,lessons,epistle_gospel,evening,songs`) : []
-    ]).then(([setting, changes, lect]) => {
-      if (setting[0] && setting[0].value) W.pattern = { ...W.pattern, ...setting[0].value, schedule: { ...W.pattern.schedule, ...(setting[0].value.schedule || {}) } };
-      W.changes = Object.fromEntries(changes.map((c) => [c.day, { ...c, time: c.time ? c.time.slice(0, 5) : null }]));
-      W.lect = Object.fromEntries(lect.map((l) => [l.day, l]));
-      renderSundays();
-    });
+    ]).then(([setting, changes, lect]) => apply(setting[0] && setting[0].value, changes, lect));
   } else if (window.__MTCA_FAKE_SB && window.__FAKE_SEED) { // preview / tests
     const db = window.__FAKE_SEED.db || {};
     const sv = (db.portal_settings || []).find((r) => r.key === 'worship');
-    if (sv) W.pattern = { ...W.pattern, ...sv.value, schedule: { ...W.pattern.schedule, ...(sv.value.schedule || {}) } };
-    W.changes = Object.fromEntries((db.worship_services || []).map((c) => [c.day, { ...c, time: c.time ? c.time.slice(0, 5) : null }]));
-    W.lect = Object.fromEntries((db.ref_lectionary || []).map((l) => [l.day, l]));
-    renderSundays();
+    apply(sv && sv.value, db.worship_services, db.ref_lectionary);
   }
 
   // Lightbox

@@ -27,13 +27,35 @@ description: Upcoming services, meetings and special events at Mar Thoma Church,
       <p class="muted small" data-cal-status role="status"></p>
     </div>
     <aside class="cal-side">
-      <h3>This month</h3>
+      <h3>Coming up</h3>
       <div data-cal-list></div>
       <div class="panel panel--tint cal-note">
         <p class="eyebrow">Every Sunday</p>
-        <p><strong>Worship at <span data-worship-time>{{ site.data.church.worship.time }}</span></strong><br><span data-worship-pattern>Malayalam on the 1st and 3rd Sundays, and English on the 2nd and 4th Sundays</span>.</p>
+        <p><strong>Sunday worship</strong><br><span data-worship-times>{{ site.data.church.worship.times }}</span></p>
         <a class="text-link" href="{{ site.data.church.livestream_url }}" target="_blank" rel="noopener">Watch live →</a>
       </div>
     </aside>
+  </div>
+</section>
+
+<section class="section section--tint past-events" id="past">
+  <div class="wrap">
+    <div class="section__head">
+      <p class="eyebrow">Past events</p>
+      <h2>What we’ve done together</h2>
+    </div>
+    <div data-past-events><p class="muted">Loading past events…</p></div>
+    {% assign m = site.media_base %}
+    {% if site.data.announcements.size > 0 %}
+    <h3 class="past-events__sub">Earlier flyers</h3>
+    <div class="flyers" data-lightbox-group>
+      {% for a in site.data.announcements %}
+      <a class="flyer" href="{{ m }}/{{ a.image }}" data-lightbox>
+        <img src="{{ m }}/{{ a.image }}" alt="{{ a.title }}" loading="lazy">
+        <span>{{ a.title }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 </section>

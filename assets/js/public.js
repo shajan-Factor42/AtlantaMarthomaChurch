@@ -91,6 +91,40 @@ async function home(sb) {
   if (section && shown) section.hidden = false;
 }
 
+/** An event is past once it has ended (all-day events: at the end of that day). */
+function isPast(e) {
+  const end = e.ends_at ? new Date(e.ends_at) : new Date(e.starts_at);
+  if (!e.ends_at) end.setTime(end.getTime() + (e.all_day ? 0 : 3 * 3600e3));
+  return e.all_day && !e.ends_at ? dayKey(e.starts_at) < todayIso() : end < new Date();
+}
+
+async function pastEvents(sb) {
+  const box = $('[data-past-events]');
+  if (!box) return;
+  const rows = ok(await visibleTo(sb.from('events').select('*').eq('published', true))
+    .lt('starts_at', new Date().toISOString()).gte('starts_at', new Date(Date.now() - 400 * 864e5).toISOString())
+    .order('starts_at', { ascending: false }).limit(150)).filter(isPast);
+  // Weekly repeats (e.g. Pickleball) shown once, as their most recent date
+  const seen = new Set();
+  const past = rows.filter((e) => { const k = e.title.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  if (!past.length) { box.innerHTML = '<p class="empty">Past events will appear here after they take place.</p>'; return; }
+  const LIMIT = 12;
+  const render = (all) => {
+    const items = all ? past : past.slice(0, LIMIT);
+    const groups = [];
+    items.forEach((e, i) => {
+      const mo = new Date(e.starts_at).toLocaleDateString('en-US', { timeZone: TZ, month: 'long', year: 'numeric' });
+      if (!groups.length || groups[groups.length - 1][0] !== mo) groups.push([mo, []]);
+      groups[groups.length - 1][1].push([e, i]);
+    });
+    box.innerHTML = `<div class="past-grid">${groups.map(([mo, list]) => `<div class="past-month"><h3>${esc(mo)}</h3><ul class="event-list">${list.map(([e, i]) => eventItem(e, i)).join('')}</ul></div>`).join('')}</div>
+      ${!all && past.length > LIMIT ? `<p><button class="btn btn--outline btn--small" data-past-more>Show all ${past.length} past events</button></p>` : ''}`;
+    $$('[data-ev]', box).forEach((b) => (b.onclick = () => eventDialog(past[+b.dataset.ev])));
+    const more = $('[data-past-more]', box); if (more) more.onclick = () => render(true);
+  };
+  render(false);
+}
+
 /* ---------------- Events calendar ---------------- */
 async function events(sb) {
   const grid = $('[data-cal-grid]', calendar);
@@ -131,15 +165,21 @@ async function events(sb) {
       </div>`;
     }
     grid.innerHTML = cells;
-    const monthRows = rows.map((e, i) => [e, i]).filter(([e]) => dayKey(e.starts_at).startsWith(`${y}-${String(m + 1).padStart(2, '0')}`));
-    list.innerHTML = monthRows.length
-      ? `<ul class="event-list">${monthRows.map(([e, i]) => eventItem(e, i)).join('')}</ul>`
-      : `<p class="empty">No events posted for ${label.textContent}.</p>`;
-    $$('[data-ev]', calendar).forEach((b) => (b.onclick = () => eventDialog(rows[+b.dataset.ev])));
+    $$('.cal__event[data-ev]', calendar).forEach((b) => { if (isPast(rows[+b.dataset.ev])) b.classList.add('is-past'); });
+    $$('[data-ev]', grid).forEach((b) => (b.onclick = () => eventDialog(rows[+b.dataset.ev])));
     const url = new URL(location.href);
     url.searchParams.set('month', `${y}-${String(m + 1).padStart(2, '0')}`);
     history.replaceState(null, '', url);
   }
+
+  // Side list: the next upcoming events (past ones move to "Past events" below)
+  (async () => {
+    const up = ok(await visibleTo(sb.from('events').select('*').eq('published', true))
+      .gte('starts_at', new Date(Date.now() - 24 * 3600e3).toISOString()).order('starts_at').limit(12)).filter((e) => !isPast(e)).slice(0, 8);
+    list.innerHTML = up.length ? `<ul class="event-list">${up.map((e, i) => eventItem(e, i)).join('')}</ul>` : '<p class="empty">No upcoming events posted yet.</p>';
+    $$('[data-ev]', list).forEach((b) => (b.onclick = () => eventDialog(up[+b.dataset.ev])));
+  })().catch((e) => console.warn(e));
+  pastEvents(sb).catch((e) => { console.warn(e); const box = $('[data-past-events]'); if (box) box.innerHTML = ''; });
 
   $('[data-cal-prev]', calendar).onclick = () => { m--; if (m < 0) { m = 11; y--; } load(); };
   $('[data-cal-next]', calendar).onclick = () => { m++; if (m > 11) { m = 0; y++; } load(); };

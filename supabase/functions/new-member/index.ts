@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     };
     if (!r.first_name || !r.last_name) return json({ error: "Please enter your first and last name." }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(r.email)) return json({ error: "Please enter a valid email address." }, 400);
-    if (!r.phone) return json({ error: "Please enter a phone number so Achen can reach you." }, 400);
+    if (!r.phone) return json({ error: "Please enter a phone number so the Vicar can reach you." }, 400);
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: setRow } = await sb.from("portal_settings").select("value").eq("key", "new_members").maybeSingle();

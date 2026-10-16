@@ -5,7 +5,7 @@ The new mtcatlanta.org: a static site hosted free on **GitHub Pages** (built wit
 ```
 _config.yml          site settings (title, URL, where images come from)
 _data/               ← most day-to-day edits happen here
-  church.yml           email, worship time, Sunday language schedule, livestream link, address
+  church.yml           email, fallback Sunday service times (real times are set in Admin → Worship), livestream link, address
   leadership.yml       vicar + executive committee
   announcements.yml    flyers on the home page
   newsletters.yml      newsletter PDFs
@@ -103,9 +103,9 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - Linked from the top bar on every page, the home page, Worship and Contact pages; Mitra AI points people to it.
 
 ### Worship schedule (Admin → Worship)
-- **Upcoming Sundays:** officers can change any Sunday: language (Malayalam, English, Bilingual, Combined, No service), time, a note (e.g. "Holy Communion", "Episcopal Visit") and the celebrant. Sundays left alone follow the regular pattern. **Reset** returns a Sunday to normal.
-- **Regular pattern** (admins): service time and the language for the 1st–5th Sundays.
-- Changes show on the Worship page (with that Sunday's lectionary readings), the "This Sunday" banner and home card, and in Mitra AI's answers.
+- **Regular Sunday services** (admins): the services held every Sunday — by default 8:00 AM English and 10:00 AM Malayalam. Add, remove or change times and languages here.
+- **Upcoming Sundays:** officers can change any Sunday — different services that day (times and languages), no service, a note (e.g. "Holy Communion", "Episcopal Visit") and the celebrant. **Reset** returns a Sunday to the regular services.
+- Shown in the top banner, the home page "This Sunday" card, the Worship page (with each Sunday's lectionary readings), Events, Contact and the footer, and used by Mitra AI.
 
 ### Flyers and newsletter covers
 - **Flyers:** in Admin → Announcements or Events, use the **Flyer** field to upload a JPG/PNG. It shows beside the announcement on the home page (click to enlarge), in the member portal, as a thumbnail in "Coming up", and in the event's detail window. Editing without choosing a new file keeps the flyer; tick "Remove this flyer" to drop it.
@@ -118,7 +118,7 @@ Roles live in `members.role`: `member`, `officer` (can use Admin), `admin` (also
 - `supabase/003_chat.sql` + `supabase/functions/chat/` — chat assistant usage limits and function.
 - `supabase/012_prayer_requests.sql` + `supabase/functions/prayer-request/` — private prayer requests.
 - `supabase/011_new_members.sql` + `supabase/functions/new-member/` — New Members form requests and the staff email.
-- `supabase/006_worship.sql` — per-Sunday worship changes and the regular pattern; public read of the lectionary.
+- `supabase/006_worship.sql` + `013_worship_two_services.sql` — Sunday services (regular + per-Sunday changes); public read of the lectionary.
 - `supabase/005_flyers.sql` — flyer images on events and announcements (public `flyers` bucket) and the events "Register / details" link.
 - `supabase/004_mitra_references.sql` + `supabase/functions/mitra-sources/` — marthoma.in reference copy, search and the scheduled refresh jobs.
 

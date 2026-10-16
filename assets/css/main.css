@@ -466,3 +466,19 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
 @media (max-width: 960px) { .join-band__ctas { justify-items: start; } }
 .topbar__links a { white-space: nowrap; }
 @media (max-width: 520px) { .topbar__long { display: none; } .topbar__links { gap: .9rem; } }
+
+/* ---------- Past events ---------- */
+.cal__event.is-past { opacity: .55; }
+.past-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem 2.5rem; }
+.past-month h3 { font-size: 1.2rem; margin-bottom: .6rem; color: var(--muted); }
+.past-events .event-row strong { font-weight: 600; }
+.past-events__sub { margin: 2.5rem 0 1rem; }
+
+/* ---------- Two Sunday services ---------- */
+.service-list { list-style: none; padding: 0; margin: .9rem 0 0; display: grid; gap: .55rem; }
+.service-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.service-list span { font-family: var(--serif); font-size: 1.9rem; font-weight: 700; color: var(--primary); line-height: 1.05; }
+.service-list strong { font-size: 1.05rem; font-weight: 600; }
+.sun__row strong { display: grid; justify-items: end; gap: .1rem; }
+.sun__svc { font-weight: 600; white-space: nowrap; }
+.past-events .flyers { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1rem; }
