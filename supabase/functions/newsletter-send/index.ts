@@ -51,7 +51,7 @@ function emailHtml(nl: { title: string; pdf_url: string }, c: Content, church: {
   const secs = (c.sections || []).filter((s) => s.heading).slice(0, 6);
   const li = (main: string, sub = "") => `<li style="margin:0 0 8px"><strong>${esc(main)}</strong>${sub ? `<br><span style="color:#5f6b78">${esc(sub)}</span>` : ""}</li>`;
   const block = (h: string, items: string) => items ? `<h3 style="font:600 16px Georgia,serif;color:#3d5875;margin:22px 0 8px">${h}</h3><ul style="padding-left:18px;margin:0">${items}</ul>` : "";
-  return `<!doctype html><html><body style="margin:0;background:#f4f7fa;font:15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1f2a36">
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f7fa;font:15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1f2a36">
 ${test ? `<div style="background:#fff6e6;color:#7a5a12;text-align:center;padding:8px;font-size:13px">Test copy — only you received this.</div>` : ""}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8ef">

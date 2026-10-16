@@ -1868,3 +1868,183 @@ function bindNlEditor() {
   };
   refreshSendCard();
 }
+
+
+/* ---------------------------------------------------------------------
+   Greetings: birthday & wedding anniversary emails from the register
+   (editable templates; send on demand or automatically each morning)
+--------------------------------------------------------------------- */
+const GR_PLACEHOLDERS = {
+  birthday: [['{first_name}', 'first name'], ['{name}', 'full name'], ['{church}', 'church name']],
+  anniversary: [['{couple_first}', 'e.g. John & Mary'], ['{couple}', 'e.g. John & Mary Thomas'], ['{years}', 'e.g. 25th'], ['{church}', 'church name']]
+};
+const GR_RANGES = [['today', 'Today', 0], ['week', 'Next 7 days', 6], ['month', 'Next 30 days', 29]];
+const addDays = (day, n) => { const d = new Date(day + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+const grDay = (day) => new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+async function grInvoke(body) {
+  const { data, error } = await sb.functions.invoke('greetings', { body: { ...body, site_base: NL_SITE_BASE } });
+  if (error) {
+    let m = error.message;
+    try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) { /* keep message */ }
+    throw new Error(m);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+VIEWS.greetings = async function () {
+  ctx.grRange ||= 'week';
+  const today = todayIso();
+  const span = GR_RANGES.find((r) => r[0] === ctx.grRange)[2];
+  ctx.grFrom = today; ctx.grTo = addDays(today, span);
+  const [setRow, list] = await Promise.all([
+    sb.from('portal_settings').select('value').eq('key', 'greetings').maybeSingle(),
+    grInvoke({ action: 'list', from: ctx.grFrom, to: ctx.grTo }).catch((e) => ({ error: friendly(e), items: [] }))
+  ]);
+  const G = (setRow.data && setRow.data.value) || {};
+  ctx.grSettings = G; ctx.grItems = list.items || [];
+  const items = ctx.grItems;
+  const sendable = items.filter((i) => i.status !== 'sent' && i.emails.length);
+  const row = (i) => `<tr class="${i.status === 'sent' ? 'is-done' : ''}">
+    <td class="gr-check">${i.status !== 'sent' && i.emails.length ? `<input type="checkbox" data-gr="${esc(i.id)}" checked aria-label="Send to ${esc(i.name)}">` : ''}</td>
+    <td class="nowrap"><strong>${esc(grDay(i.date))}</strong>${i.date === today ? ' <span class="badge">Today</span>' : ''}</td>
+    <td><span class="pill pill--${i.kind === 'birthday' ? 'gr-b' : 'gr-a'}">${i.kind === 'birthday' ? 'Birthday' : `Anniversary${i.years ? ` · ${esc(i.years)}` : ''}`}</span></td>
+    <td><strong>${esc(i.name)}</strong></td>
+    <td class="hide-sm">${i.emails.length ? `<small>${i.emails.map(esc).join('<br>')}</small>${i.via_family ? '<br><small class="muted">to the parents</small>' : ''}` : (i.opted_out ? '<small class="muted">Unsubscribed from greetings</small>' : '<small class="warn">No email in the register</small>')}</td>
+    <td>${i.status === 'sent' ? `<small class="ok-text">Sent ${esc(sentDay(i.sent_at))}</small>` : i.status === 'failed' ? `<small class="warn" title="${esc(i.error || '')}">Failed — try again</small>` : '<small class="muted">Not sent</small>'}</td>
+  </tr>`;
+  const tplCard = (kind) => {
+    const t = G[kind] || {}, label = kind === 'birthday' ? 'Birthday email' : 'Anniversary email';
+    return `<section class="pcard">
+      <div class="pcard__head"><div><h2>${label}</h2><p class="muted small">${kind === 'birthday' ? 'Sent to the person on their birthday. Children without their own email are greeted through their parents’ addresses.' : 'One email to the couple (both addresses), on their wedding anniversary.'}</p></div></div>
+      <form class="form form--flat gr-form" data-kind="${kind}">
+        <label>Subject<input name="subject" value="${esc(t.subject || '')}" maxlength="140" required></label>
+        <div class="gr-img">
+          ${t.image_url ? `<img src="${esc(t.image_url)}" alt="">` : '<div class="gr-img__none">No picture</div>'}
+          <div>
+            <label>Picture (optional)<input type="file" name="image_file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="muted">A card or cake picture shown above the message. Wide images work best.</small></label>
+            ${t.image_url ? '<label class="check"><input type="checkbox" name="image_remove"> Remove the picture</label>' : ''}
+          </div>
+        </div>
+        <label>Message<textarea name="message" rows="9" required>${esc(t.message || '')}</textarea></label>
+        <label>Signed<textarea name="signoff" rows="3">${esc(t.signoff || '')}</textarea></label>
+        <p class="small muted">Fill-ins: ${GR_PLACEHOLDERS[kind].map(([k, d]) => `<button type="button" class="nl-chip" data-ph="${k}" title="${esc(d)}">${k}</button>`).join(' ')} — tap one to add it where the cursor is.</p>
+        <div class="nl-actions">
+          <button class="btn btn--primary" type="submit">Save</button>
+          <button class="btn btn--outline" type="button" data-gr-preview>Preview</button>
+          <span class="gr-test"><input type="email" name="test_to" value="${esc(me.email || '')}" aria-label="Send a test to"><button class="btn btn--outline btn--small" type="button" data-gr-test>Send test</button></span>
+          <p class="form__msg" role="status"></p>
+        </div>
+      </form>
+    </section>`;
+  };
+  return `
+    <section class="pcard">
+      <div class="pcard__head"><div><h2>Birthdays & anniversaries</h2>
+        <p class="muted small">From the dates of birth and wedding dates in the parish register (inactive families are skipped). Each person gets each greeting once a year.</p></div></div>
+      ${list.error ? `<div class="notice notice--error">${esc(list.error)}</div>` : ''}
+      ${list.items && !list.ready && !list.error ? '<div class="notice">Email sending isn’t switched on yet — the church’s Resend key still needs to be added in Supabase. You can set up the templates now.</div>' : ''}
+      <div class="seg" role="tablist">${GR_RANGES.map(([k, l]) => `<button data-gr-range="${k}" aria-selected="${k === ctx.grRange}">${l}</button>`).join('')}</div>
+      ${items.length ? `<div class="table-wrap"><table class="table gr-table">
+        <thead><tr><th></th><th>Date</th><th>Occasion</th><th>Who</th><th class="hide-sm">Goes to</th><th>Status</th></tr></thead>
+        <tbody>${items.map(row).join('')}</tbody></table></div>
+        <div class="nl-actions"><button class="btn btn--gold" id="gr-send" ${sendable.length && list.ready ? '' : 'disabled'}>Send selected greetings</button>
+          <div class="progress" id="gr-progress" hidden><i></i></div><p class="small" id="gr-msg" role="status"></p></div>`
+      : `<p class="empty">No birthdays or anniversaries ${ctx.grRange === 'today' ? 'today' : 'in this period'}${list.error ? '' : ' — or the register doesn’t have dates of birth and wedding dates yet'}.</p>`}
+      <div class="gr-auto">
+        <label class="toggle"><input type="checkbox" id="gr-auto" ${G.auto ? 'checked' : ''}><span><strong>Send automatically every morning</strong> (about 8 AM) to everyone celebrating that day, using the templates below.</span></label>
+      </div>
+    </section>
+    ${tplCard('birthday')}
+    ${tplCard('anniversary')}`;
+};
+
+BIND.greetings = function () {
+  $$('[data-gr-range]', view).forEach((b) => (b.onclick = () => { ctx.grRange = b.dataset.grRange; show('greetings'); }));
+  const saveSettings = async (patch) => {
+    const value = { ...ctx.grSettings, ...patch };
+    ok(await sb.from('portal_settings').upsert({ key: 'greetings', value, updated_at: new Date().toISOString() }, { onConflict: 'key' }));
+    ctx.grSettings = value;
+  };
+  $('#gr-auto').onchange = async (e) => {
+    const on = e.target.checked;
+    try { await saveSettings({ auto: on }); toast(on ? 'Greetings will go out automatically each morning' : 'Automatic greetings turned off'); }
+    catch (err) { e.target.checked = !on; toast(friendly(err), true); }
+  };
+  // Send selected
+  const sendBtn = $('#gr-send');
+  if (sendBtn) sendBtn.onclick = () => {
+    const ids = $$('[data-gr]:checked', view).map((c) => c.dataset.gr);
+    if (!ids.length) { toast('Tick at least one greeting', true); return; }
+    confirmDialog(`Send ${ids.length} greeting${ids.length === 1 ? '' : 's'}?`, 'Each one is emailed now using the templates below.', async () => { setTimeout(() => run(ids), 0); }, 'Send now');
+    async function run(all) {
+      const bar = $('#gr-progress'), out = $('#gr-msg');
+      sendBtn.disabled = true; bar.hidden = false;
+      let sent = 0, failed = 0, left = [...all];
+      try {
+        while (left.length) {
+          const chunk = left.slice(0, 25); left = left.slice(25);
+          const r = await grInvoke({ action: 'send', from: ctx.grFrom, to: ctx.grTo, ids: chunk });
+          (r.results || []).forEach((x) => (x.status === 'sent' ? sent++ : failed++));
+          $('i', bar).style.width = `${Math.round(((all.length - left.length) / all.length) * 100)}%`;
+          out.textContent = `Sent ${sent} of ${all.length}…`;
+        }
+        toast(`${sent} greeting${sent === 1 ? '' : 's'} sent${failed ? `, ${failed} failed` : ''}`, !!failed && !sent);
+        await show('greetings');
+      } catch (err) { bar.hidden = true; sendBtn.disabled = false; out.textContent = `Stopped: ${friendly(err)}`; }
+    }
+  };
+  // Templates
+  $$('.gr-form', view).forEach((form) => {
+    const kind = form.dataset.kind;
+    let lastField = form.message;
+    [form.subject, form.message, form.signoff].forEach((f) => f.addEventListener('focus', () => (lastField = f)));
+    $$('[data-ph]', form).forEach((b) => (b.onclick = () => {
+      const f = lastField, s = f.selectionStart ?? f.value.length, e = f.selectionEnd ?? s;
+      f.value = f.value.slice(0, s) + b.dataset.ph + f.value.slice(e); f.focus(); f.selectionStart = f.selectionEnd = s + b.dataset.ph.length;
+    }));
+    const current = () => ({ ...(ctx.grSettings[kind] || {}), subject: form.subject.value.trim(), message: form.message.value.trim(), signoff: form.signoff.value.trim() });
+    async function withImage(t) {
+      const file = form.image_file.files[0];
+      if (form.image_remove && form.image_remove.checked) t.image_url = null;
+      if (file) {
+        if (!/^image\//.test(file.type)) throw new Error('The picture must be an image (JPG or PNG).');
+        const img = await prepareImage(file, 1400, 0.85);
+        const path = `greetings/${kind}-${Date.now()}-${img.name.replace(/[^\w.\-]+/g, '-').toLowerCase()}`;
+        ok(await sb.storage.from('flyers').upload(path, img, { contentType: img.type || 'image/jpeg', cacheControl: '31536000' }));
+        t.image_url = sb.storage.from('flyers').getPublicUrl(path).data.publicUrl;
+      }
+      return t;
+    }
+    form.onsubmit = async (e) => {
+      e.preventDefault(); busy(form, true);
+      try { await saveSettings({ [kind]: await withImage(current()) }); toast('Template saved'); await show('greetings'); }
+      catch (err) { msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+    $('[data-gr-preview]', form).onclick = async () => {
+      busy(form, true); msg(form, 'Making the preview…');
+      try {
+        const t = current();
+        const f = form.image_file.files[0];
+        if (form.image_remove && form.image_remove.checked) t.image_url = null;
+        const r = await grInvoke({ action: 'render', kind, template: t });
+        msg(form, '');
+        const d = dialog(`Preview: ${esc(r.subject)}`, '<iframe class="gr-preview" title="Email preview"></iframe><p class="muted small">Shown with sample names. Unsaved changes are included.</p>', null, { wide: true });
+        $('button[value=cancel]', d).textContent = 'Close';
+        const fr = $('iframe', d); fr.srcdoc = r.html;
+        if (f) fr.onload = () => { const im = fr.contentDocument.querySelector('img[width="504"]'); const u = URL.createObjectURL(f); if (im) im.src = u; else { const td = fr.contentDocument.querySelectorAll('table table tr')[0]; if (td) td.insertAdjacentHTML('afterend', `<tr><td style="padding:20px 28px 0"><img src="${u}" style="display:block;width:100%;border-radius:10px"></td></tr>`); } };
+      } catch (err) { msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+    $('[data-gr-test]', form).onclick = async () => {
+      const to = form.test_to.value.trim();
+      if (!to) { msg(form, 'Enter an email address for the test.', true); return; }
+      busy(form, true); msg(form, 'Sending a test…');
+      try {
+        const t = current();
+        if (form.image_file.files[0]) { msg(form, 'Save first to include the new picture in the test.', true); return; }
+        const r = await grInvoke({ action: 'test', kind, to, template: t }); msg(form, r.message);
+      } catch (err) { msg(form, friendly(err), true); } finally { busy(form, false); }
+    };
+  });
+};

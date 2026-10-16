@@ -1,4 +1,5 @@
-// Newsletter unsubscribe (no sign-in needed; links are signed per email address).
+// Newsletter / greetings unsubscribe (no sign-in needed; links are signed per email address).
+// l=greetings (or {list:"greetings"}) manages birthday & anniversary greeting emails instead of newsletters.
 // POST ?e=<email>&t=<signature>               – one-click unsubscribe from the email app (List-Unsubscribe-Post)
 // POST {e, t, action: "unsubscribe"|"resubscribe"} – from the website page /newsletters/unsubscribe/
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -22,24 +23,26 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
     const url = new URL(req.url);
-    let e = url.searchParams.get("e") || "", t = url.searchParams.get("t") || "", action = "unsubscribe";
+    let e = url.searchParams.get("e") || "", t = url.searchParams.get("t") || "", action = "unsubscribe", list = url.searchParams.get("l") || "";
     if ((req.headers.get("content-type") || "").includes("application/json")) {
       const b = await req.json().catch(() => ({}));
-      e = b.e || e; t = b.t || t; action = b.action === "resubscribe" ? "resubscribe" : "unsubscribe";
+      e = b.e || e; t = b.t || t; list = b.list || list; action = b.action === "resubscribe" ? "resubscribe" : "unsubscribe";
     }
+    const greetings = list === "greetings";
+    const table = greetings ? "greeting_optouts" : "newsletter_optouts";
     const email = String(e).trim().toLowerCase();
     if (!email || !t) return json({ error: "This unsubscribe link is incomplete." }, 400);
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: s } = await admin.from("app_secrets").select("value").eq("key", "newsletter_unsubscribe").maybeSingle();
-    if (!s || (await hmac(s.value, email)) !== String(t)) return json({ error: "This unsubscribe link isn't valid. Please use the link from a recent newsletter email." }, 400);
+    if (!s || (await hmac(s.value, greetings ? `greetings:${email}` : email)) !== String(t)) return json({ error: "This unsubscribe link isn't valid. Please use the link from a recent email." }, 400);
 
     if (action === "resubscribe") {
-      await admin.from("newsletter_optouts").delete().eq("email", email);
-      return json({ ok: true, subscribed: true, email });
+      await admin.from(table).delete().eq("email", email);
+      return json({ ok: true, subscribed: true, email, list: greetings ? "greetings" : "newsletter" });
     }
-    await admin.from("newsletter_optouts").upsert({ email });
-    return json({ ok: true, subscribed: false, email });
+    await admin.from(table).upsert({ email });
+    return json({ ok: true, subscribed: false, email, list: greetings ? "greetings" : "newsletter" });
   } catch (err) {
     return json({ error: (err as Error).message || String(err) }, 500);
   }

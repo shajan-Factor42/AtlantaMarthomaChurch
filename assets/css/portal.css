@@ -373,3 +373,20 @@ body.is-admin { background: #f3f5f8; }
 .nl-photo small { color: var(--muted); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-2 > label > span { display: flex; align-items: center; gap: .4rem; }
 @media (max-width: 700px) { .nl-cover { grid-template-columns: 1fr; } }
+
+/* ---------- Admin → Greetings ---------- */
+.pill--gr-b { background: #fbf1dc; color: #7a5a12; border-color: #f0dfb4; }
+.pill--gr-a { background: #f6e9e1; color: #7a3b1c; border-color: #ecd2c3; }
+.gr-table .gr-check { width: 28px; }
+.gr-table .gr-check input { width: 18px; height: 18px; accent-color: var(--primary); }
+.gr-table tr.is-done td { opacity: .65; }
+.ok-text { color: #2f6b3a; font-weight: 600; }
+.gr-auto { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.gr-img { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; align-items: start; }
+.gr-img img, .gr-img__none { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.gr-img__none { display: grid; place-items: center; background: var(--tint); color: var(--muted); font-size: .85rem; }
+.gr-test { display: inline-flex; gap: .4rem; align-items: center; }
+.gr-test input { width: 220px; max-width: 100%; }
+.gr-preview { width: 100%; height: min(70vh, 720px); border: 1px solid var(--line); border-radius: 10px; background: #f4efe7; }
+@media (max-width: 700px) { .gr-img { grid-template-columns: 1fr; } .gr-test { flex-wrap: wrap; } }
+.gr-test .btn { white-space: nowrap; }

@@ -23,7 +23,8 @@ sitemap: false
 <script>
 (function () {
   var CFG = window.MTCA_CONFIG || {}, box = document.getElementById('unsub');
-  var q = new URLSearchParams(location.search), e = q.get('e') || '', t = q.get('t') || '';
+  var q = new URLSearchParams(location.search), e = q.get('e') || '', t = q.get('t') || '', l = q.get('l') === 'greetings' ? 'greetings' : '';
+  var what = l ? 'birthday and anniversary greeting emails' : 'the parish newsletter by email';
   var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var contact = '{{ site.data.church.email }}';
   if (!e || !t || !CFG.SUPABASE_URL) {
@@ -31,21 +32,21 @@ sitemap: false
     return;
   }
   function ask() {
-    box.innerHTML = '<h2>Stop the newsletter emails?</h2><p><strong>' + esc(e) + '</strong> will no longer receive the parish newsletter by email. You can still read every issue on the <a href="{{ "/newsletters/" | relative_url }}">Newsletters page</a>.</p>' +
+    box.innerHTML = '<h2>' + (l ? 'Stop greeting emails?' : 'Stop the newsletter emails?') + '</h2><p><strong>' + esc(e) + '</strong> will no longer receive ' + what + '.' + (l ? ' Other parish emails aren’t affected.' : ' You can still read every issue on the <a href="{{ "/newsletters/" | relative_url }}">Newsletters page</a>.') + '</p>' +
       '<p><button class="btn btn--primary" id="unsub-go">Unsubscribe</button></p><p class="form__msg" role="status"></p>';
     document.getElementById('unsub-go').onclick = function () { call('unsubscribe'); };
   }
   function done(subscribed) {
     box.innerHTML = subscribed
-      ? '<h2>You’re back on the list</h2><p>' + esc(e) + ' will receive the parish newsletter again. Thank you!</p>'
-      : '<h2>You’ve been unsubscribed</h2><p>' + esc(e) + ' won’t receive newsletter emails any more. We’ll miss you!</p><p><button class="btn btn--outline btn--small" id="unsub-undo">Changed your mind? Subscribe again</button></p>';
+      ? '<h2>You’re back on the list</h2><p>' + esc(e) + ' will receive ' + what + ' again. Thank you!</p>'
+      : '<h2>You’ve been unsubscribed</h2><p>' + esc(e) + ' won’t receive ' + what + ' any more.</p><p><button class="btn btn--outline btn--small" id="unsub-undo">Changed your mind? Subscribe again</button></p>';
     var u = document.getElementById('unsub-undo'); if (u) u.onclick = function () { call('resubscribe'); };
   }
   function call(action) {
     var b = box.querySelector('button'); if (b) b.disabled = true;
     fetch(CFG.SUPABASE_URL + '/functions/v1/newsletter-unsubscribe', {
       method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_ANON_KEY },
-      body: JSON.stringify({ e: e, t: t, action: action })
+      body: JSON.stringify({ e: e, t: t, action: action, list: l })
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.error) throw new Error(d.error);
       done(d.subscribed);
