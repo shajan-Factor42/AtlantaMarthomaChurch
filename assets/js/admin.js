@@ -2207,3 +2207,107 @@ function bindIcon() {
   VIEWS.settings = async function () { const html = await viewSettings.call(VIEWS); return isAdmin() ? html + iconCardHtml() : html; };
   BIND.settings = function () { if (bindSettings) bindSettings.call(BIND); if (isAdmin() && $('#icon-card')) bindIcon(); };
 }
+
+
+/* ---------------------------------------------------------------------
+   Online giving (Zeffy) — Portal Settings, admins only.
+   Zeffy hosts the forms and takes the payments; the site embeds them and
+   Zeffy's webhook reports each completed payment back (zeffy-webhook).
+--------------------------------------------------------------------- */
+const ZF_FIELDS = [
+  ['donate_url', 'Donation form link', 'Used by the Donate button in the main menu and the Give page.'],
+  ['monthly_url', 'Monthly subscription form link', 'A Zeffy donation form set to monthly giving. Members see it under Giving.'],
+  ['other_url', 'Other payments form link (optional)', 'For events, special offerings or a shop — any Zeffy form.']
+];
+function zeffyCardHtml() {
+  return `<section class="pcard" id="zeffy-card">
+    <div class="pcard__head"><div><h2>Online giving (Zeffy)</h2>
+      <p class="muted small">Donations and monthly subscriptions are paid on the church’s Zeffy forms, shown inside the website. Every payment — including each monthly charge — is reported back here and matched to a family by email.</p></div></div>
+    <form id="zf-form" class="zf-links">
+      ${ZF_FIELDS.map(([k, l, h]) => `<label>${l}<input type="url" name="${k}" placeholder="https://www.zeffy.com/en-US/donation-form/…"><small>${h}</small></label>`).join('')}
+      <label>Category for monthly payments<input name="monthly_category" maxlength="60"><small>How monthly payments are labelled on giving statements (when giving isn’t coming from ICON).</small></label>
+      <label>Note shown with the monthly option<textarea name="monthly_note" rows="2" maxlength="300"></textarea></label>
+      <label>Note shown with other payments<textarea name="other_note" rows="2" maxlength="300"></textarea></label>
+      <div class="btn-row"><button class="btn btn--primary btn--small" type="submit">Save links</button> <a class="btn btn--outline btn--small" href="../give/" target="_blank" rel="noopener">View the Give page</a></div>
+      <p class="small" id="zf-msg" role="status"></p>
+    </form>
+    <h3 class="nl-h">Webhook address</h3>
+    <p class="muted small">Paste this into Zeffy → <strong>Settings → Integrations → Webhooks</strong> so payments appear here. Keep it private — it contains the church’s secret key.</p>
+    <div class="zf-hook"><code id="zf-hook">Loading…</code><button class="btn btn--outline btn--small" type="button" id="zf-copy">Copy</button></div>
+    <details class="icon-help"><summary>How to set up Zeffy</summary>
+      <ol class="small">
+        <li>Create the church’s free account at <a href="https://www.zeffy.com" target="_blank" rel="noopener">zeffy.com</a> and finish the bank (payout) verification.</li>
+        <li>Create a <strong>donation form</strong> for general giving. Copy its link (Share → copy link) into “Donation form link”.</li>
+        <li>Create a second donation form called <em>Monthly Subscription</em> with <strong>monthly</strong> as the only frequency (you can set suggested amounts). Paste its link into “Monthly subscription form link”. Zeffy charges members each month and emails them a link to change or cancel.</li>
+        <li>Optional: create a ticketing or donation form for other payments and paste its link.</li>
+        <li>In Zeffy → Settings → Integrations, add a webhook with the address above. Make a small test payment and check it appears below.</li>
+        <li>Optional extra check: generate a Zeffy API key and add it as the Supabase secret <code>ZEFFY_API_KEY</code>; each payment is then confirmed with Zeffy before it’s recorded.</li>
+      </ol>
+      <p class="small muted">While giving comes from ICON, online payments are listed here and in each member’s Giving page, and appear on statements once the treasurer posts them in ICON. Otherwise they’re added to the family’s giving automatically.</p>
+    </details>
+    <h3 class="nl-h">Recent online payments</h3>
+    <div id="zf-payments" class="muted small">Loading…</div>
+  </section>`;
+}
+
+function bindZeffy() {
+  const form = $('#zf-form'), out = $('#zf-msg');
+  let cur = {};
+  (async () => {
+    try {
+      const row = ok(await sb.from('portal_settings').select('value').eq('key', 'zeffy').maybeSingle());
+      cur = (row && row.value) || {};
+      ['donate_url', 'monthly_url', 'other_url', 'monthly_category', 'monthly_note', 'other_note'].forEach((k) => (form[k].value = cur[k] || ''));
+    } catch (e) { out.innerHTML = `<span class="warn">${esc(friendly(e))}</span>`; }
+    try { $('#zf-hook').textContent = ok(await sb.rpc('zeffy_webhook_url')); } catch (e) { $('#zf-hook').textContent = friendly(e); }
+  })();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(form));
+    for (const [k, l] of ZF_FIELDS) {
+      v[k] = (v[k] || '').trim();
+      if (v[k] && !/^https:\/\/([\w-]+\.)*zeffy\.com\//i.test(v[k])) { out.innerHTML = `<span class="warn">${l} should be a zeffy.com link.</span>`; return; }
+    }
+    busy(form, true);
+    try {
+      const value = { ...cur, ...v };
+      ok(await sb.from('portal_settings').upsert({ key: 'zeffy', value, updated_at: new Date().toISOString() }, { onConflict: 'key' }));
+      cur = value; out.textContent = ''; toast('Online giving links saved');
+    } catch (err) { out.innerHTML = `<span class="warn">${esc(friendly(err))}</span>`; } finally { busy(form, false); }
+  };
+  $('#zf-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#zf-hook').textContent); toast('Webhook address copied'); } catch (e) { toast('Select the address and copy it', true); }
+  };
+  loadZeffyPayments();
+}
+
+async function loadZeffyPayments() {
+  const box = $('#zf-payments');
+  try {
+    const [rs, fs] = await Promise.all([
+      sb.from('zeffy_payments').select('id, paid_at, received_at, amount, name, email, campaign, kind, status, family_id, contribution_id, family:families(family_name)').order('paid_at', { ascending: false }).limit(30),
+      sb.from('families').select('id, family_name').order('family_name')
+    ]);
+    const rows = ok(rs), fams = ok(fs);
+    if (!rows.length) { box.innerHTML = 'No online payments yet. They appear here as soon as Zeffy reports them.'; return; }
+    const famOpts = fams.map((f) => `<option value="${esc(f.id)}">${esc(f.family_name)}</option>`).join('');
+    box.classList.remove('muted', 'small');
+    box.innerHTML = `<div class="table-wrap"><table class="table table--compact"><thead><tr><th>Date</th><th>From</th><th>For</th><th>Family</th><th class="num">Amount</th></tr></thead><tbody>${rows.map((r) => `<tr>
+      <td class="nowrap">${date((r.paid_at || r.received_at).slice(0, 10))}</td>
+      <td>${esc(r.name || '')}<br><small class="muted">${esc(r.email || '')}</small></td>
+      <td>${esc(r.campaign || r.kind)}${r.kind === 'monthly' ? ' <span class="pill">Monthly</span>' : ''}${r.status !== 'succeeded' ? ` <span class="warn small">${esc(r.status)}</span>` : ''}</td>
+      <td>${r.family_id ? `${esc(r.family?.family_name || '')}${r.contribution_id ? ' <span class="pill pill--both">Posted</span>' : ''}` : `<select class="zf-match" data-zf-match="${esc(r.id)}" aria-label="Match to a family"><option value="">Not matched — choose family…</option>${famOpts}</select>`}</td>
+      <td class="num">${money(r.amount)}</td></tr>`).join('')}</tbody></table></div>`;
+    $$('[data-zf-match]', box).forEach((s) => (s.onchange = async () => {
+      if (!s.value) return;
+      try { ok(await sb.from('zeffy_payments').update({ family_id: s.value }).eq('id', s.dataset.zfMatch)); toast('Payment matched to the family'); loadZeffyPayments(); }
+      catch (e) { toast(friendly(e), true); s.value = ''; }
+    }));
+  } catch (e) { box.innerHTML = `<span class="warn">${esc(friendly(e))}</span>`; }
+}
+
+{
+  const viewSettings = VIEWS.settings, bindSettings = BIND.settings;
+  VIEWS.settings = async function () { const html = await viewSettings.call(VIEWS); return isAdmin() ? html + zeffyCardHtml() : html; };
+  BIND.settings = function () { if (bindSettings) bindSettings.call(BIND); if (isAdmin() && $('#zeffy-card')) bindZeffy(); };
+}

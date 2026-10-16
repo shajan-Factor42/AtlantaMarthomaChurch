@@ -27,6 +27,7 @@ const api = {
   familyMembers: async () => ok(await sb.from('members').select('*').eq('family_id', me.family_id).order('date_of_birth', { ascending: true, nullsFirst: false })),
   contributions: async () => ok(await sb.from('contributions').select('*').eq('family_id', me.family_id).order('given_on', { ascending: false })),
   pledges: async () => ok(await sb.from('pledges').select('*').eq('family_id', me.family_id)),
+  onlinePayments: async () => ok(await sb.from('zeffy_payments').select('id, paid_at, received_at, amount, campaign, kind, status, contribution_id').eq('family_id', me.family_id).order('paid_at', { ascending: false }).limit(12)),
   orgMemberships: async () => ok(await sb.from('organization_memberships').select('*')),
   announcements: async () => ok(await sb.from('member_announcements').select('*').lte('published_on', todayIso())
     .order('pinned', { ascending: false }).order('published_on', { ascending: false }).limit(40)).filter((a) => !a.expires_on || a.expires_on >= todayIso()).slice(0, 20),
@@ -217,10 +218,11 @@ const VIEWS = {
   },
 
   async giving() {
-    const [contribs, pledges] = await Promise.all([api.contributions(), api.pledges()]);
+    const [contribs, pledges, online] = await Promise.all([api.contributions(), api.pledges(), api.onlinePayments().catch(() => [])]);
     const years = [...new Set(contribs.map((c) => +c.given_on.slice(0, 4)).concat(new Date().getFullYear()))].sort((a, b) => b - a);
     ctx.giving = { contribs, pledges };
     return `
+      ${giveOnlineHtml(online)}
       <div class="pcard__head no-print">
         <label class="inline">Year <select id="giving-year">${years.map((y) => `<option>${y}</option>`).join('')}</select></label>
         <button class="btn btn--primary btn--small" onclick="window.print()">Print statement</button>
@@ -320,6 +322,43 @@ const VIEWS = {
   }
 };
 
+/* Online giving through Zeffy — form links come from Admin → Portal Settings → Online giving. */
+const ZEFFY_KINDS = {
+  monthly: { title: 'Monthly subscription', blurb: 'Set up your parish subscription as a monthly charge. Zeffy charges your card automatically each month.', btn: 'Set up monthly subscription', key: 'monthly_url', note: 'monthly_note' },
+  donation: { title: 'One-time donation', blurb: 'Give a gift to the church today, of any amount.', btn: 'Give a donation', key: 'donate_url' },
+  other: { title: 'Pay for something else', blurb: 'Events, special offerings and other payments.', btn: 'Make a payment', key: 'other_url', note: 'other_note' }
+};
+function giveOnlineHtml(online) {
+  const z = settings.zeffy || {};
+  const opts = Object.entries(ZEFFY_KINDS).filter(([, k]) => z[k.key]);
+  const kindLabel = (k) => (ZEFFY_KINDS[k] || ZEFFY_KINDS.donation).title;
+  return `<section class="pcard no-print give-online">
+    <div class="pcard__head"><div><h2>Give online</h2>
+      <p class="muted small">Secure payments through Zeffy — the church receives 100% of what you give. Use <strong>${esc(me.email)}</strong> on the form so the payment is linked to your family.</p></div></div>
+    ${opts.length ? `<div class="give-opts">${opts.map(([kind, k]) => `
+      <div class="give-opt give-opt--${kind}">
+        <h3>${k.title}</h3>
+        <p class="small">${esc((k.note && z[k.note]) || k.blurb)}</p>
+        <button class="btn ${kind === 'monthly' ? 'btn--primary' : 'btn--outline'} btn--small" data-give="${kind}">${k.btn}</button>
+      </div>`).join('')}</div>` : '<p class="muted">Online giving will be available here soon. Until then, please give by check.</p>'}
+    ${online.length ? `<h3 class="give-online__h">Your recent online payments</h3>
+      <div class="table-wrap"><table class="table table--compact"><tbody>${online.map((o) => `<tr>
+        <td class="nowrap">${date((o.paid_at || o.received_at).slice(0, 10))}</td>
+        <td>${esc(o.campaign || kindLabel(o.kind))}${o.kind === 'monthly' ? ' <span class="pill">Monthly</span>' : ''}</td>
+        <td class="small muted">${o.status !== 'succeeded' ? esc(o.status) : o.contribution_id ? 'On your statement' : 'Received — added to your statement once posted'}</td>
+        <td class="num">${money(o.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+  </section>`;
+}
+function openGiving(kind) {
+  const z = settings.zeffy || {}, k = ZEFFY_KINDS[kind], link = z[k.key];
+  if (!link) return;
+  const d = dialog(esc(k.title), `
+    <iframe class="give-frame" title="${esc(k.title)} form" src="${esc(window.MTCA_ZEFFY_EMBED(link))}" allow="payment"></iframe>
+    <p class="muted small">Please use <strong>${esc(me.email)}</strong> as your email so this payment shows on your family’s giving. Form not loading? <a href="${esc(link)}" target="_blank" rel="noopener">Open it in a new tab</a>.</p>`, null, { wide: true });
+  $('button[value=cancel]', d).textContent = 'Close';
+  d.addEventListener('close', () => { if (current === 'giving') setTimeout(() => show('giving'), 1500); });
+}
+
 function renderStatement(year) {
   const { contribs, pledges } = ctx.giving;
   const rows = contribs.filter((c) => c.given_on.startsWith(String(year))).sort((a, b) => a.given_on.localeCompare(b.given_on));
@@ -389,7 +428,10 @@ const BIND = {
     $('#edit-family').onclick = editFamily;
   },
   family() { $$('[data-edit-member]', view).forEach((b) => (b.onclick = () => editMember(b.dataset.editMember))); },
-  giving() { const s = $('#giving-year'); s.onchange = () => renderStatement(s.value); renderStatement(s.value); },
+  giving() {
+    const s = $('#giving-year'); s.onchange = () => renderStatement(s.value); renderStatement(s.value);
+    $$('[data-give]', view).forEach((b) => (b.onclick = () => openGiving(b.dataset.give)));
+  },
   directory() {
     const draw = (q = '') => {
       const t = q.toLowerCase();

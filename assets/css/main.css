@@ -392,3 +392,18 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
 .unsub__card { max-width: 560px; width: 100%; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 2rem; box-shadow: var(--shadow); }
 .unsub__card h2 { margin-top: 0; }
 .unsub .form__msg.is-error { color: #a12a2a; }
+
+/* Donate button + Give page (Zeffy) */
+.nav__actions { display: inline-flex; align-items: center; gap: .6rem; }
+.nav__donate[aria-current="page"] { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--gold); }
+@media (max-width: 960px) {
+  .nav__actions { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: 1rem; }
+  .nav__actions .btn { justify-content: center; margin-top: 0; }
+}
+.give { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: clamp(1.5rem, 4vw, 3rem); align-items: start; }
+.give__embed iframe { display: block; width: 100%; height: 1150px; border: 0; border-radius: var(--radius); background: var(--white); box-shadow: var(--shadow); }
+.give__loading { padding: 2rem 0; }
+.give__secure { margin-top: .9rem; }
+.give__side { display: grid; gap: 1.25rem; }
+.give__side .panel h2 { margin-top: 0; }
+@media (max-width: 860px) { .give { grid-template-columns: 1fr; } .give__embed iframe { height: 1250px; } }

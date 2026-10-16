@@ -1,4 +1,18 @@
 // Mar Thoma Church, Atlanta — public site behavior
+
+// Turn a Zeffy form link (as copied from Zeffy, e.g. https://www.zeffy.com/en-US/donation-form/abc)
+// into its embeddable version (https://www.zeffy.com/embed/donation-form/abc). Embed links pass through.
+window.MTCA_ZEFFY_EMBED = function (link) {
+  try {
+    const u = new URL(String(link).trim());
+    if (!/(^|\.)zeffy\.com$/.test(u.hostname)) return u.href;
+    const parts = u.pathname.split('/').filter(Boolean);
+    if (parts[0] === 'embed') return u.href;
+    if (/^[a-z]{2}(-[A-Za-z]{2})?$/.test(parts[0] || '')) parts.shift();   // drop the language, e.g. en-US
+    return `https://www.zeffy.com/embed/${parts.join('/')}${u.search}`;
+  } catch (e) { return link; }
+};
+
 (function () {
   // Mobile nav
   const toggle = document.querySelector('.nav__toggle');

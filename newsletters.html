@@ -29,7 +29,8 @@ description: Monthly newsletters from Mar Thoma Church, Atlanta.
 
 <script>
 // Newsletters created or uploaded in Admin → Newsletters (newest first), above the older ones.
-(function () {
+// Runs after config.js / site.js, which load at the end of the page.
+document.addEventListener('DOMContentLoaded', function () {
   var CFG = window.MTCA_CONFIG || {}, grid = document.getElementById('nl-grid');
   if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY || !grid) return;
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -47,5 +48,5 @@ description: Monthly newsletters from Mar Thoma Church, Atlanta.
       grid.insertAdjacentHTML('afterbegin', html);
     })
     .catch(function () {});
-})();
+});
 </script>

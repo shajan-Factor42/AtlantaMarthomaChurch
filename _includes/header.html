@@ -25,7 +25,10 @@
       <a href="{{ '/gallery/' | relative_url }}" {% if p contains '/gallery' %}aria-current="page"{% endif %}>Gallery</a>
       <a href="{{ '/newsletters/' | relative_url }}" {% if p contains '/newsletters' %}aria-current="page"{% endif %}>Newsletters</a>
       <a href="{{ '/contact-us/' | relative_url }}" {% if p contains '/contact' %}aria-current="page"{% endif %}>Contact</a>
-      <a class="btn btn--small btn--outline nav__login" href="{{ '/members/' | relative_url }}">Member Login</a>
+      <span class="nav__actions">
+        <a class="btn btn--small btn--gold nav__donate" href="{{ '/give/' | relative_url }}" {% if p contains '/give' %}aria-current="page"{% endif %}>Donate</a>
+        <a class="btn btn--small btn--outline nav__login" href="{{ '/members/' | relative_url }}">Member Login</a>
+      </span>
     </nav>
   </div>
 </header>

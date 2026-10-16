@@ -1,0 +1,61 @@
+---
+layout: default
+title: Give
+permalink: /give/
+description: Give online to Mar Thoma Church, Atlanta — one-time or monthly, through our secure Zeffy form.
+---
+{% assign c = site.data.church %}
+<section class="page-hero">
+  <div class="wrap">
+    <p class="eyebrow eyebrow--light">Donate</p>
+    <h1>Support the ministry</h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap give">
+    <div class="give__form">
+      <div id="give-embed" class="give__embed" aria-live="polite">
+        <p class="muted give__loading">Loading the giving form…</p>
+      </div>
+      <p class="give__secure small muted" id="give-open" hidden>Payments are processed securely by <strong>Zeffy</strong>, a free platform for nonprofits — 100% of your gift reaches the church. Trouble seeing the form? <a id="give-open-link" href="#" target="_blank" rel="noopener">Open it in a new tab</a>.</p>
+    </div>
+
+    <aside class="give__side">
+      <div class="panel panel--tint">
+        <p class="eyebrow">Parish members</p>
+        <h2>Monthly subscription</h2>
+        <p>Set up your monthly parish subscription, or pay for an event or offering, from the <strong>Giving</strong> page of the member area. Payments made there are linked to your family’s giving record.</p>
+        <a class="btn btn--primary btn--small" href="{{ '/members/' | relative_url }}#giving">Go to member giving</a>
+      </div>
+      <div class="panel">
+        <p class="eyebrow">By check</p>
+        <p>Make checks payable to <strong>{{ c.giving.payable_to }}</strong>. {{ c.giving.note }}</p>
+        <p class="small muted">{{ c.name }} · {{ c.address.line1 }}, {{ c.address.city }}, {{ c.address.state }} {{ c.address.zip }}</p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<script>
+// The donation form link is set in Admin → Portal Settings → Online giving (portal_settings 'zeffy').
+// Runs after config.js / site.js, which load at the end of the page.
+document.addEventListener('DOMContentLoaded', function () {
+  var CFG = window.MTCA_CONFIG || {}, box = document.getElementById('give-embed');
+  function fallback() {
+    box.innerHTML = '<div class="panel panel--tint"><h2>Online giving is coming soon</h2><p>Until then, please give by check — see the details alongside — or speak to a trustee after Sunday worship.</p></div>';
+  }
+  if (!CFG.SUPABASE_URL) return fallback();
+  fetch(CFG.SUPABASE_URL + '/rest/v1/portal_settings?key=eq.zeffy&select=value', { headers: { apikey: CFG.SUPABASE_ANON_KEY } })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .then(function (rows) {
+      var url = rows[0] && rows[0].value && rows[0].value.donate_url;
+      if (!url) return fallback();
+      var embed = window.MTCA_ZEFFY_EMBED(url);
+      box.innerHTML = '<iframe title="Donation form" src="' + embed.replace(/"/g, '&quot;') + '" allowpaymentrequest allow="payment" loading="lazy"></iframe>';
+      document.getElementById('give-open-link').href = url;
+      document.getElementById('give-open').hidden = false;
+    })
+    .catch(fallback);
+});
+</script>
